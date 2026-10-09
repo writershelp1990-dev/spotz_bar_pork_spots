@@ -37,6 +37,7 @@ class UnitOfMeasure(models.Model):
         WEIGHT = "WEIGHT", "Weight"
         VOLUME = "VOLUME", "Volume"
         COUNT = "COUNT", "Count"
+        PACKAGING = "PACKAGING", "Packaging"
 
     name = models.CharField(
         max_length=50,
@@ -157,6 +158,12 @@ class Product(models.Model):
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["brand", "variety", "packaging", "size_value", "size_unit"],
+                name="unique_product_variant",
+            )
+        ]
 
     def clean(self):
         errors = {}
@@ -202,8 +209,30 @@ class Product(models.Model):
         # This instance has already been inserted if it was new.
         super().save(update_fields=["code"])
 
+    @property
+    def display_name(self):
+        """
+        Compose a human-readable name from brand/variety/packaging/size.
+        Falls back to `name` when variant fields are empty.
+        """
+        parts = []
+        if self.brand:
+            parts.append(self.brand)
+        if self.variety:
+            parts.append(self.variety)
+        if self.packaging:
+            parts.append(self.packaging)
+        if self.size_value is not None and self.size_unit_id:
+            # normalize() strips trailing zeros; 'f' format avoids scientific
+            # notation (so Decimal("500") renders as "500", not "5e+2").
+            size = format(self.size_value.normalize(), "f")
+            parts.append(f"{size}{self.size_unit.abbreviation}")
+        if parts:
+            return " ".join(parts)
+        return self.name or f"Product {self.pk}"
+
     def __str__(self):
-        return self.name
+        return self.display_name
 
 
 class ProductPriceHistory(models.Model):

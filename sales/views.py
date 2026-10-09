@@ -41,7 +41,7 @@ def pos(request):
         except ValidationError:
             continue
         product_rows.append({
-            "id": p.pk, "name": p.name, "code": p.code,
+            "id": p.pk, "name": p.display_name, "code": p.code,
             "unit": p.selling_unit.abbreviation, "price": str(price),
             "track_inventory": p.track_inventory
         })
@@ -289,7 +289,7 @@ def price_add(request):
                 "effective_from": price.effective_from.isoformat(),
             },
         )
-        messages.success(request, f"Selling price saved for {price.product.name}.")
+        messages.success(request, f"Selling price saved for {price.product.display_name}.")
         return redirect("sales:catalog")
 
     return render(request, "sales/form.html", {
@@ -316,7 +316,7 @@ def stock_receive(request):
                 reference=form.cleaned_data["reference"],
                 reason=form.cleaned_data["reason"]
             )
-            messages.success(request, f"Received {movement.quantity_delta} {movement.product.selling_unit.abbreviation} of {movement.product.name}.")
+            messages.success(request, f"Received {movement.quantity_delta} {movement.product.selling_unit.abbreviation} of {movement.product.display_name}.")
             return redirect("sales:stock")
         except (ValidationError, PermissionDenied) as exc:
             form.add_error(None, getattr(exc, "message", str(exc)))

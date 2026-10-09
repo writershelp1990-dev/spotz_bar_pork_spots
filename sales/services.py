@@ -53,9 +53,9 @@ def current_selling_price(product, moment):
     )
     price = prices.first()
     if not price:
-        raise ValidationError(f"No effective selling price is configured for {product.name}.")
+        raise ValidationError(f"No effective selling price is configured for {product.display_name}.")
     if price.price < 0:
-        raise ValidationError(f"Invalid selling price for {product.name}.")
+        raise ValidationError(f"Invalid selling price for {product.display_name}.")
     return price.price
 
 @transaction.atomic
@@ -136,7 +136,7 @@ def checkout(*, user, operating_point, payment_method, amount_tendered, items_js
     for product_id in sorted(aggregated):
         product = products[product_id]
         if not product.is_active:
-            raise ValidationError(f"{product.name} is inactive.")
+            raise ValidationError(f"{product.display_name} is inactive.")
         qty = aggregated[product_id]
         price = current_selling_price(product, now).quantize(CENT)
         line_total = (qty * price).quantize(CENT, rounding=ROUND_HALF_UP)
@@ -171,7 +171,7 @@ def checkout(*, user, operating_point, payment_method, amount_tendered, items_js
             balance = StockBalance.objects.select_for_update().get(pk=balance.pk)
             if balance.quantity < qty:
                 raise ValidationError(
-                    f"Insufficient stock for {product.name} at {operating_point.name}. "
+                    f"Insufficient stock for {product.display_name} at {operating_point.name}. "
                     f"Available: {balance.quantity}; requested: {qty}."
                 )
             balance.quantity -= qty
@@ -181,7 +181,7 @@ def checkout(*, user, operating_point, payment_method, amount_tendered, items_js
 
         item = SaleItem.objects.create(
             sale=sale, product=product,
-            product_name_snapshot=product.name,
+            product_name_snapshot=product.display_name,
             product_code_snapshot=product.code or "",
             unit_name_snapshot=product.selling_unit.abbreviation,
             quantity=qty, unit_price=price, line_total=line_total
