@@ -124,3 +124,8 @@ config/test_settings_spotz_temp.py
 spotz_catalogue_test.sqlite3
 default_1.sqlite3
 default_2.sqlite3
+
+# Local phase backups (kept outside repo, ignored if ever present)
+phase1_*_backup_*
+phase1_*_backup_*/
+
