@@ -1,0 +1,263 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Operating Points | SPOTZ{% endblock %}
+
+{% block content %}
+<section class="operating-points-page">
+
+    <header class="operating-points-hero">
+
+        <div class="operating-points-hero-glow operating-points-glow-pink"></div>
+        <div class="operating-points-hero-glow operating-points-glow-purple"></div>
+
+        <div class="operating-points-hero-content">
+            <div class="operating-points-kicker">
+                <span class="operating-points-kicker-dot"></span>
+                MANAGEMENT / BUSINESS STRUCTURE
+            </div>
+
+            <h1>Operating Points</h1>
+
+            <p class="operating-points-intro">
+                Control where SPOTZ operates and which locations are available
+                for staff assignment.
+            </p>
+
+            <div class="operating-points-summary">
+                <div class="operating-points-summary-item">
+                    <span class="operating-points-summary-value">
+                        {{ operating_points|length }}
+                    </span>
+                    <span class="operating-points-summary-label">
+                        Operating Points
+                    </span>
+                </div>
+
+                <div class="operating-points-summary-divider"></div>
+
+                <div class="operating-points-summary-item">
+                    <span class="operating-points-summary-icon">●</span>
+                    <span class="operating-points-summary-label">
+                        Location Control
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="operating-points-hero-action">
+            <a href="{% url 'create_operating_point' %}"
+               class="operating-points-add-button">
+                <span class="operating-points-add-icon">+</span>
+                <span>
+                    <strong>Add Operating Point</strong>
+                    <small>Create a new location</small>
+                </span>
+            </a>
+        </div>
+
+    </header>
+
+
+    <div class="operating-points-section-header">
+        <div>
+            <span class="operating-points-section-kicker">LOCATIONS</span>
+            <h2>SPOTZ Operating Network</h2>
+            <p>
+                Active locations are available for staff assignment and operations.
+            </p>
+        </div>
+
+        <div class="operating-points-section-badge">
+            <span></span>
+            System Online
+        </div>
+    </div>
+
+
+    <div class="operating-points-grid">
+
+        {% for point in operating_points %}
+
+        <article class="
+            operating-point-card
+            operating-point-card-{{ forloop.counter }}
+            {% if not point.is_active %}operating-point-inactive{% endif %}
+        ">
+
+            <div class="operating-point-card-glow"></div>
+
+            <div class="operating-point-card-top">
+
+                <div class="operating-point-identity">
+
+                    <div class="operating-point-symbol">
+                        {{ point.code|slice:":1" }}
+                    </div>
+
+                    <div>
+                        <span class="operating-point-code">
+                            {{ point.code }}
+                        </span>
+
+                        {% if point.is_system_point %}
+                            <span class="operating-point-type system">
+                                SYSTEM
+                            </span>
+                        {% else %}
+                            <span class="operating-point-type custom">
+                                CUSTOM
+                            </span>
+                        {% endif %}
+                    </div>
+
+                </div>
+
+                <div class="operating-point-status">
+                    {% if point.is_active %}
+                        <span class="status-active">
+                            <span></span>
+                            ACTIVE
+                        </span>
+                    {% else %}
+                        <span class="status-inactive">
+                            <span></span>
+                            INACTIVE
+                        </span>
+                    {% endif %}
+                </div>
+
+            </div>
+
+
+            <div class="operating-point-card-body">
+
+                <h2>{{ point.name }}</h2>
+
+                {% if point.description %}
+                    <p>{{ point.description }}</p>
+                {% else %}
+                    <p class="muted">
+                        No description provided for this operating point.
+                    </p>
+                {% endif %}
+
+            </div>
+
+
+            <div class="operating-point-info-row">
+
+                <div class="operating-point-info-item">
+                    <span class="operating-point-info-icon staff">
+                        ♟
+                    </span>
+
+                    <div>
+                        <strong>{{ point.employees.count }}</strong>
+                        <small>Staff Assigned</small>
+                    </div>
+                </div>
+
+                <div class="operating-point-info-item">
+                    {% if point.is_system_point %}
+                        <span class="operating-point-info-icon protected">
+                            ◆
+                        </span>
+
+                        <div>
+                            <strong>Protected</strong>
+                            <small>System Point</small>
+                        </div>
+                    {% else %}
+                        <span class="operating-point-info-icon custom">
+                            ✦
+                        </span>
+
+                        <div>
+                            <strong>Custom</strong>
+                            <small>Director Created</small>
+                        </div>
+                    {% endif %}
+                </div>
+
+            </div>
+
+
+            <div class="operating-point-actions">
+
+                <a href="{% url 'edit_operating_point' point.pk %}"
+                   class="operating-point-edit-button">
+                    <span>✎</span>
+                    Edit
+                </a>
+
+                <form method="post"
+                      action="{% url 'toggle_operating_point' point.pk %}">
+                    {% csrf_token %}
+
+                    <button type="submit"
+                            class="operating-point-toggle-button
+                            {% if not point.is_active %}activate{% endif %}">
+                        {% if point.is_active %}
+                            <span>◐</span>
+                            Deactivate
+                        {% else %}
+                            <span>●</span>
+                            Activate
+                        {% endif %}
+                    </button>
+                </form>
+
+            </div>
+
+        </article>
+
+        {% empty %}
+
+            <div class="operating-point-empty">
+                <div class="operating-point-empty-icon">◎</div>
+
+                <h2>No Operating Points Yet</h2>
+
+                <p>
+                    Create the first operating point to begin configuring
+                    SPOTZ locations.
+                </p>
+
+                <a href="{% url 'create_operating_point' %}"
+                   class="operating-points-add-button empty-action">
+                    <span class="operating-points-add-icon">+</span>
+                    <span>
+                        <strong>Add Operating Point</strong>
+                        <small>Create your first location</small>
+                    </span>
+                </a>
+            </div>
+
+        {% endfor %}
+
+    </div>
+
+
+    <div class="operating-points-security">
+
+        <div class="operating-points-security-icon">
+            ✓
+        </div>
+
+        <div class="operating-points-security-content">
+            <strong>Protected History</strong>
+
+            <span>
+                Operating points are never deleted. Deactivation preserves
+                historical records while preventing new staff assignments.
+            </span>
+        </div>
+
+        <div class="operating-points-security-lock">
+            HISTORICAL DATA PROTECTED
+        </div>
+
+    </div>
+
+</section>
+{% endblock %}

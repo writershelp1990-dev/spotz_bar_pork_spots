@@ -1,0 +1,556 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Audit Log | SPOTZ{% endblock %}
+
+{% block content %}
+
+<style>
+.audit-page {
+    width: 100%;
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 18px 0 50px;
+}
+
+.audit-hero {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 24px;
+    padding: 30px;
+    margin-bottom: 24px;
+    background:
+        radial-gradient(circle at 85% 20%, rgba(186,85,255,.18), transparent 34%),
+        radial-gradient(circle at 15% 80%, rgba(255,52,132,.13), transparent 30%),
+        rgba(15,15,24,.72);
+    box-shadow: 0 20px 60px rgba(0,0,0,.24);
+}
+
+.audit-kicker {
+    color: #c9a7ff;
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .16em;
+    margin-bottom: 10px;
+}
+
+.audit-hero h1 {
+    margin: 0;
+    font-size: clamp(2rem, 4vw, 3.3rem);
+    font-weight: 900;
+}
+
+.audit-hero h1 span {
+    background: linear-gradient(90deg,#ff4f9a,#a970ff,#4fdcff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.audit-hero p {
+    max-width: 780px;
+    margin: 10px 0 0;
+    color: rgba(255,255,255,.62);
+}
+
+.audit-security {
+    margin-top: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 13px;
+    border-radius: 999px;
+    background: rgba(86,255,181,.07);
+    border: 1px solid rgba(86,255,181,.16);
+    color: #8dffc8;
+    font-size: .7rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+}
+
+.audit-filter-card,
+.audit-table-card {
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 20px;
+    background: rgba(13,13,21,.78);
+    box-shadow: 0 16px 45px rgba(0,0,0,.18);
+}
+
+.audit-filter-card {
+    padding: 22px;
+    margin-bottom: 22px;
+}
+
+.audit-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 15px;
+}
+
+.audit-filter-field {
+    min-width: 0;
+}
+
+.audit-filter-field label {
+    display: block;
+    margin-bottom: 7px;
+    color: rgba(255,255,255,.55);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.audit-filter-field input,
+.audit-filter-field select {
+    width: 100%;
+}
+
+.audit-filter-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.audit-filter-submit {
+    border: 0;
+    border-radius: 11px;
+    padding: 11px 18px;
+    color: white;
+    background: linear-gradient(135deg,#ff3d8b,#9a58ff);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.audit-filter-reset {
+    color: rgba(255,255,255,.6);
+    text-decoration: none;
+    font-size: .85rem;
+}
+
+.audit-errors {
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255,74,116,.25);
+    border-radius: 12px;
+    background: rgba(255,74,116,.08);
+    color: #ff9ab8;
+}
+
+.audit-table-card {
+    overflow: hidden;
+}
+
+.audit-table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 19px 22px;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+}
+
+.audit-table-title {
+    font-weight: 850;
+}
+
+.audit-count {
+    color: rgba(255,255,255,.45);
+    font-size: .78rem;
+}
+
+.audit-table-wrap {
+    overflow-x: auto;
+}
+
+.audit-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1080px;
+}
+
+.audit-table th {
+    padding: 13px 16px;
+    text-align: left;
+    color: rgba(255,255,255,.42);
+    font-size: .66rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.audit-table td {
+    padding: 15px 16px;
+    border-top: 1px solid rgba(255,255,255,.055);
+    vertical-align: top;
+}
+
+.audit-time {
+    white-space: nowrap;
+    color: rgba(255,255,255,.7);
+    font-size: .8rem;
+}
+
+.audit-user {
+    font-weight: 750;
+}
+
+.audit-subtle {
+    margin-top: 3px;
+    color: rgba(255,255,255,.4);
+    font-size: .72rem;
+}
+
+.audit-action {
+    display: inline-flex;
+    border-radius: 999px;
+    padding: 5px 9px;
+    background: rgba(169,112,255,.11);
+    border: 1px solid rgba(169,112,255,.18);
+    color: #d7baff;
+    font-size: .65rem;
+    font-weight: 850;
+}
+
+.audit-object {
+    font-weight: 750;
+}
+
+.audit-reason {
+    max-width: 310px;
+    color: rgba(255,255,255,.62);
+    line-height: 1.45;
+}
+
+.audit-changes {
+    margin: 0;
+    max-width: 360px;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(0,0,0,.22);
+    color: rgba(255,255,255,.68);
+    font-size: .7rem;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.audit-meta {
+    color: rgba(255,255,255,.42);
+    font-size: .7rem;
+    line-height: 1.5;
+}
+
+.audit-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 19px;
+    border-top: 1px solid rgba(255,255,255,.07);
+}
+
+.audit-page-link {
+    min-width: 34px;
+    padding: 8px 10px;
+    text-align: center;
+    border-radius: 9px;
+    color: rgba(255,255,255,.72);
+    background: rgba(255,255,255,.045);
+    text-decoration: none;
+}
+
+.audit-page-link.active {
+    color: white;
+    background: linear-gradient(135deg,#ff3d8b,#9a58ff);
+}
+
+.audit-empty {
+    padding: 50px 20px;
+    text-align: center;
+    color: rgba(255,255,255,.45);
+}
+
+@media (max-width: 1050px) {
+    .audit-filter-grid {
+        grid-template-columns: repeat(2, minmax(0,1fr));
+    }
+}
+
+@media (max-width: 620px) {
+    .audit-hero,
+    .audit-filter-card {
+        padding: 18px;
+        border-radius: 16px;
+    }
+
+    .audit-filter-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .audit-filter-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .audit-filter-submit {
+        width: 100%;
+    }
+}
+</style>
+
+<section class="audit-page">
+
+    <section class="audit-hero">
+        <div class="audit-kicker">MANAGEMENT / CONTROL / AUDIT</div>
+        <h1>Audit <span>Log</span></h1>
+        <p>
+            Read-only visibility into important SPOTZ management and operational
+            actions. Historical audit records cannot be edited or deleted.
+        </p>
+        <div class="audit-security">
+            <span>◆</span>
+            DIRECTOR-ONLY • APPEND-ONLY RECORDS
+        </div>
+    </section>
+
+    <section class="audit-filter-card">
+        <form method="get">
+
+            {% if form.non_field_errors %}
+                <div class="audit-errors">
+                    {% for error in form.non_field_errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="audit-filter-grid">
+
+                <div class="audit-filter-field">
+                    {{ form.start_datetime.label_tag }}
+                    {{ form.start_datetime }}
+                    {{ form.start_datetime.errors }}
+                </div>
+
+                <div class="audit-filter-field">
+                    {{ form.end_datetime.label_tag }}
+                    {{ form.end_datetime }}
+                    {{ form.end_datetime.errors }}
+                </div>
+
+                <div class="audit-filter-field">
+                    {{ form.user.label_tag }}
+                    {{ form.user }}
+                    {{ form.user.errors }}
+                </div>
+
+                <div class="audit-filter-field">
+                    {{ form.action.label_tag }}
+                    {{ form.action }}
+                    {{ form.action.errors }}
+                </div>
+
+                <div class="audit-filter-field">
+                    {{ form.model_name.label_tag }}
+                    {{ form.model_name }}
+                    {{ form.model_name.errors }}
+                </div>
+
+                <div class="audit-filter-field">
+                    {{ form.operating_point.label_tag }}
+                    {{ form.operating_point }}
+                    {{ form.operating_point.errors }}
+                </div>
+
+                <div class="audit-filter-field" style="grid-column: span 2;">
+                    {{ form.search.label_tag }}
+                    {{ form.search }}
+                    {{ form.search.errors }}
+                </div>
+
+            </div>
+
+            <div class="audit-filter-actions">
+                <button type="submit" class="audit-filter-submit">
+                    Apply Filters
+                </button>
+
+                <a href="{% url 'audit:audit_log' %}" class="audit-filter-reset">
+                    Clear filters
+                </a>
+            </div>
+
+        </form>
+    </section>
+
+    <section class="audit-table-card">
+
+        <header class="audit-table-header">
+            <div class="audit-table-title">Historical Activity</div>
+            <div class="audit-count">
+                {{ audit_count }} record{{ audit_count|pluralize }}
+            </div>
+        </header>
+
+        {% if page_obj.object_list %}
+
+            <div class="audit-table-wrap">
+                <table class="audit-table">
+
+                    <thead>
+                        <tr>
+                            <th>Date / Time</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>Object</th>
+                            <th>Operating Point</th>
+                            <th>Reason</th>
+                            <th>Changes</th>
+                            <th>Request</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for entry in page_obj.object_list %}
+                            <tr>
+
+                                <td>
+                                    <div class="audit-time">
+                                        {{ entry.timestamp|date:"d M Y" }}
+                                    </div>
+                                    <div class="audit-subtle">
+                                        {{ entry.timestamp|date:"H:i:s" }}
+                                    </div>
+                                </td>
+
+                                <td>
+                                    {% if entry.user %}
+                                        <div class="audit-user">
+                                            {{ entry.user.get_full_name|default:entry.user.username }}
+                                        </div>
+                                        <div class="audit-subtle">
+                                            {{ entry.user.username }}
+                                        </div>
+                                    {% else %}
+                                        <div class="audit-user">SYSTEM</div>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    <span class="audit-action">
+                                        {{ entry.get_action_display }}
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <div class="audit-object">
+                                        {{ entry.model_name }}
+                                    </div>
+                                    {% if entry.object_id %}
+                                        <div class="audit-subtle">
+                                            ID {{ entry.object_id }}
+                                        </div>
+                                    {% endif %}
+                                    {% if entry.object_repr %}
+                                        <div class="audit-subtle">
+                                            {{ entry.object_repr }}
+                                        </div>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    {% if entry.operating_point %}
+                                        <div class="audit-object">
+                                            {{ entry.operating_point.name }}
+                                        </div>
+                                        <div class="audit-subtle">
+                                            {{ entry.operating_point.code }}
+                                        </div>
+                                    {% else %}
+                                        <span class="audit-subtle">—</span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    {% if entry.reason %}
+                                        <div class="audit-reason">
+                                            {{ entry.reason }}
+                                        </div>
+                                    {% else %}
+                                        <span class="audit-subtle">—</span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    {% if entry.changes %}
+                                        <pre class="audit-changes">{{ entry.changes }}</pre>
+                                    {% else %}
+                                        <span class="audit-subtle">No structured changes</span>
+                                    {% endif %}
+                                </td>
+
+                                <td>
+                                    <div class="audit-meta">
+                                        {% if entry.ip_address %}
+                                            IP: {{ entry.ip_address }}<br>
+                                        {% endif %}
+                                        {% if entry.user_agent %}
+                                            {{ entry.user_agent|truncatechars:90 }}
+                                        {% endif %}
+                                    </div>
+                                </td>
+
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+
+                </table>
+            </div>
+
+            {% if page_obj.has_other_pages %}
+                <nav class="audit-pagination" aria-label="Audit Log pagination">
+
+                    {% if page_obj.has_previous %}
+                        <a class="audit-page-link"
+                           href="?page={{ page_obj.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                            ‹
+                        </a>
+                    {% endif %}
+
+                    {% for number in page_obj.paginator.page_range %}
+                        {% if number == page_obj.number %}
+                            <span class="audit-page-link active">{{ number }}</span>
+                        {% elif number >= page_obj.number|add:"-2" and number <= page_obj.number|add:"2" %}
+                            <a class="audit-page-link"
+                               href="?page={{ number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                                {{ number }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                        <a class="audit-page-link"
+                           href="?page={{ page_obj.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value|urlencode }}{% endif %}{% endfor %}">
+                            ›
+                        </a>
+                    {% endif %}
+
+                </nav>
+            {% endif %}
+
+        {% else %}
+
+            <div class="audit-empty">
+                No audit records match the current filters.
+            </div>
+
+        {% endif %}
+
+    </section>
+
+</section>
+
+{% endblock %}

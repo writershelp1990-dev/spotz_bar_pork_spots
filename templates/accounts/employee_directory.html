@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Employee Management{% endblock %}
+
+{% block content %}
+<div class="spotz-page-head">
+  <div>
+    <div class="spotz-eyebrow">MANAGEMENT</div>
+    <h1>Employee Management</h1>
+    <p class="spotz-muted">Director-controlled staff lifecycle and deployment.</p>
+  </div>
+  <a class="spotz-btn spotz-btn-primary" href="{% url 'invite_staff' %}">+ Invite Staff</a>
+</div>
+
+<div class="spotz-stat-grid">
+  {% for code,label in status_choices %}
+    <div class="spotz-stat-card">
+      <span>{{ label }}</span>
+      <strong>{% if code == "INVITED" %}{{ counts.INVITED }}{% elif code == "ACTIVE" %}{{ counts.ACTIVE }}{% elif code == "OFF_DUTY" %}{{ counts.OFF_DUTY }}{% elif code == "ON_LEAVE" %}{{ counts.ON_LEAVE }}{% elif code == "SUSPENDED" %}{{ counts.SUSPENDED }}{% elif code == "TERMINATED" %}{{ counts.TERMINATED }}{% endif %}</strong>
+    </div>
+  {% endfor %}
+</div>
+
+<form method="get" class="spotz-filter-bar">
+  <input class="spotz-input" name="q" value="{{ query }}" placeholder="Search employee">
+
+  <select class="spotz-input" name="status">
+    <option value="">All statuses</option>
+    {% for code,label in status_choices %}
+      <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+
+  <select class="spotz-input" name="point">
+    <option value="">All operating points</option>
+    {% for point in operating_points %}
+      <option value="{{ point.pk }}" {% if selected_point == point.pk|stringformat:"s" %}selected{% endif %}>
+        {{ point.name }}
+      </option>
+    {% endfor %}
+  </select>
+
+  <button class="spotz-btn spotz-btn-secondary" type="submit">Filter</button>
+</form>
+
+<div class="spotz-table-card">
+  <div class="spotz-table-wrap">
+    <table class="spotz-table">
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>Role</th>
+          <th>Operating Point</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td>
+            <strong>{{ row.employee.user.get_full_name|default:row.employee.user.username }}</strong>
+            <small>{{ row.employee.user.email }}</small>
+          </td>
+          <td>{{ row.employee.user.role_definition.name|default:row.employee.user.get_role_display }}</td>
+          <td>{{ row.employee.operating_point.name|default:"?" }}</td>
+          <td><span class="spotz-status-badge">{{ row.status|cut:"_" }}</span></td>
+          <td>
+            <a class="spotz-btn spotz-btn-small spotz-btn-secondary"
+               href="{% url 'employee_detail' row.employee.pk %}">
+              View
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="spotz-empty">No employees match the filters.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

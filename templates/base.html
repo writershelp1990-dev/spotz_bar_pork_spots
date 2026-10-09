@@ -1,0 +1,223 @@
+﻿{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>{% block title %}SPOTZ BAR & PORK SPOTS{% endblock %}</title>
+
+    <meta name="theme-color" content="#09090f">
+
+    <link rel="icon" type="image/jpeg" href="{% static 'images/spotz-logo.jpg' %}">
+    <link rel="stylesheet" href="{% static 'css/spotz.css' %}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+
+<div class="app-shell">
+
+    <aside class="sidebar">
+
+        <div class="brand">
+            <div class="brand-logo-wrap">
+                <img
+                    src="{% static 'images/spotz-logo.jpg' %}"
+                    alt="SPOTZ BAR & PORK SPOTS"
+                    class="brand-logo"
+                >
+            </div>
+
+            <div class="brand-text">
+                <span class="brand-name">SPOTZ</span>
+                <span class="brand-subtitle">BAR & PORK SPOTS</span>
+            </div>
+        </div>
+
+        <div class="sidebar-divider"></div>
+
+        <nav class="main-nav">
+
+            <a href="/" class="nav-item active">
+                <span class="nav-icon">⌂</span>
+                <span>Dashboard</span>
+            </a>
+
+            <div class="nav-section">OPERATIONS</div>
+
+            <a href="/sales/">
+                <span class="nav-icon">◈</span>
+                <span>Point of Sale</span>
+            </a>
+
+            
+
+            <a href="#" aria-disabled="true" title="Feature not implemented yet" class="feature-unavailable">
+                <span class="nav-icon">◫</span>
+                <span>Daily Closing</span>
+            </a>
+
+            <div class="nav-section">INVENTORY</div>
+
+            <a href="/sales/stock/">
+                <span class="nav-icon">◉</span>
+                <span>Inventory</span>
+            </a>
+
+            <a href="#" aria-disabled="true" title="Feature not implemented yet" class="feature-unavailable">
+                <span class="nav-icon">↔</span>
+                <span>Stock Issues</span>
+            </a>
+
+            <a href="#" aria-disabled="true" title="Feature not implemented yet" class="feature-unavailable">
+                <span class="nav-icon">△</span>
+                <span>Wastage</span>
+            </a>
+
+            <div class="nav-section">MANAGEMENT</div>
+
+            <a href="/sales/catalog/">
+                <span class="nav-icon">◇</span>
+                <span>Products</span>
+            </a>
+
+            <a href="/accounts/staff/">
+                <span class="nav-icon">♙</span>
+                <span>Employees</span>
+            </a>
+            <a href="/accounts/operating-points/">
+                <span class="nav-icon">◎</span>
+                <span>Operating Points</span>
+            </a>
+
+            <a href="/admin/business/supplier/">
+                <span class="nav-icon">▤</span>
+                <span>Suppliers</span>
+            </a>
+
+            <a href="#" aria-disabled="true" title="Feature not implemented yet" class="feature-unavailable">
+                <span class="nav-icon">₵</span>
+                <span>Expenses</span>
+            </a>
+
+            {% if user.is_director %}
+            <a href="/accounts/staff/roles/">
+                <span class="nav-icon">⚙</span>
+                <span>Role Management</span>
+            </a>
+            {% endif %}
+
+            {% if user.is_director %}
+            <a href="/audit/">
+                <span class="nav-icon">◌</span>
+                <span>Audit Log</span>
+            </a>
+            {% endif %}
+
+            <div class="nav-section">INSIGHTS</div>
+
+            <a href="#" aria-disabled="true" title="Feature not implemented yet" class="feature-unavailable">
+                <span class="nav-icon">↗</span>
+                <span>Reports</span>
+            </a>
+
+            <a href="#" aria-disabled="true" title="Feature not implemented yet" class="feature-unavailable">
+                <span class="nav-icon">◎</span>
+                <span>Profit & Loss</span>
+            </a>
+
+            <form method="post" action="{% url 'logout' %}" class="logout-form sidebar-logout-form">
+                {% csrf_token %}
+                <button type="submit" class="logout-button">Logout</button>
+            </form>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="security-badge">
+                <span class="security-dot"></span>
+                <div>
+                    <strong>SPOTZ CONTROL</strong>
+                    <small>System protected</small>
+                </div>
+            </div>
+        </div>
+
+    </aside>
+
+
+    <main class="main-content">
+
+        <header class="topbar">
+
+            <button class="mobile-menu" type="button" onclick="toggleSidebar()">
+                ☰
+            </button>
+
+            <div class="page-heading">
+                <span class="eyebrow">SPOTZ MANAGEMENT SYSTEM</span>
+                <h1>{% block page_heading %}Dashboard{% endblock %}</h1>
+            </div>
+
+            <div class="topbar-actions">
+
+                <div class="status-pill">
+                    <span class="status-dot"></span>
+                    System Online
+                </div>
+
+                {% if request.user.is_authenticated %}
+                <div class="user-chip">
+                    <div class="user-avatar">
+                        {{ request.user.first_name|default:request.user.username|first|upper }}
+                    </div>
+
+                    <div class="user-details">
+                        <strong>
+                            {{ request.user.get_full_name|default:request.user.username }}
+                        </strong>
+                        <small>{{ request.user.get_role_display }}</small>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="user-actions">
+                    <a href="{% url 'profile' %}" class="user-action-link">Profile</a>
+                </div>
+            </div>
+
+        </header>
+
+
+        <div class="page-content">
+            {% block content %}{% endblock %}
+        </div>
+
+        <footer class="app-footer">
+            <span>SPOTZ BAR & PORK SPOTS</span>
+            <span>Management System</span>
+        </footer>
+
+    </main>
+
+</div>
+
+
+<script>
+function toggleSidebar() {
+    document.querySelector('.sidebar').classList.toggle('sidebar-open');
+}
+</script>
+
+{% block extra_js %}{% endblock %}
+
+</body>
+</html>
+
+
+
+
+
+
+
+

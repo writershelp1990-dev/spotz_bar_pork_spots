@@ -1,0 +1,11 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+<h1>Sales history</h1>
+<table>
+<thead><tr><th>Receipt</th><th>Date/time</th><th>Operating point</th><th>Cashier</th><th>Payment</th><th>Total (KES)</th></tr></thead>
+<tbody>
+{% for s in sales %}
+<tr><td><a href="{% url 'sales:receipt' s.pk %}">{{ s.sale_number }}</a></td><td>{{ s.sold_at }}</td><td>{{ s.operating_point.name }}</td><td>{{ s.cashier }}</td><td>{{ s.get_payment_method_display }}</td><td>{{ s.total }}</td></tr>
+{% empty %}<tr><td colspan="6">No completed sales yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endblock %}

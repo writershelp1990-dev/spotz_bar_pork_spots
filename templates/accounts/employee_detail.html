@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Employee Profile{% endblock %}
+
+{% block content %}
+<div class="spotz-page-head">
+  <div>
+    <div class="spotz-eyebrow">STAFF CONTROL CENTER</div>
+    <h1>{{ employee.user.get_full_name|default:employee.user.username }}</h1>
+    <p class="spotz-muted">{{ employee.user.email }}</p>
+  </div>
+  <div class="spotz-action-row">
+    <a class="spotz-btn spotz-btn-secondary" href="{% url 'employee_directory' %}">Back</a>
+    {% if status != "TERMINATED" %}
+      <a class="spotz-btn spotz-btn-secondary" href="{% url 'employee_edit' employee.pk %}">Edit</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="spotz-profile-grid">
+  <div class="spotz-panel">
+    <h3>Employment</h3>
+    <div class="spotz-detail-list">
+      <div><span>Status</span><strong>{{ status|cut:"_" }}</strong></div>
+      <div><span>Role</span><strong>{{ employee.user.role_definition.name|default:employee.user.get_role_display }}</strong></div>
+      <div><span>Operating Point</span><strong>{{ employee.operating_point.name|default:"?" }}</strong></div>
+      <div><span>Official Start Date</span><strong>{{ employee.date_joined|default:"Not recorded" }}</strong></div>
+    </div>
+  </div>
+
+  <div class="spotz-panel">
+    <h3>Director Actions</h3>
+    <div class="spotz-action-stack">
+      {% if status == "ACTIVE" %}
+        <a class="spotz-btn spotz-btn-secondary" href="{% url 'employee_warning' employee.pk %}">Issue Warning</a>
+        <a class="spotz-btn spotz-btn-secondary" href="{% url 'employee_leave' employee.pk %}">Approve Leave</a>
+        <a class="spotz-btn spotz-btn-secondary" href="{% url 'employee_suspend' employee.pk %}">Suspend</a>
+        <a class="spotz-btn spotz-btn-danger" href="{% url 'employee_terminate' employee.pk %}">Terminate</a>
+      {% elif status == "SUSPENDED" %}
+        <a class="spotz-btn spotz-btn-primary" href="{% url 'employee_activate' employee.pk %}">Activate Early</a>
+        <a class="spotz-btn spotz-btn-danger" href="{% url 'employee_terminate' employee.pk %}">Terminate</a>
+      {% elif status == "OFF_DUTY" %}
+        <a class="spotz-btn spotz-btn-primary" href="{% url 'employee_activate' employee.pk %}">Activate</a>
+        <a class="spotz-btn spotz-btn-danger" href="{% url 'employee_terminate' employee.pk %}">Terminate</a>
+      {% elif status == "ON_LEAVE" %}
+        <a class="spotz-btn spotz-btn-danger" href="{% url 'employee_terminate' employee.pk %}">Terminate</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="spotz-panel">
+  <h3>Warnings</h3>
+  {% for item in warnings %}
+    <div class="spotz-history-row">
+      <strong>{{ item.get_severity_display }} ? {{ item.get_warning_type_display }}</strong>
+      <span>{{ item.incident_date }} ? {{ item.issued_by.get_full_name|default:item.issued_by.username }}</span>
+      <p>{{ item.reason }}</p>
+      {% if item.director_comment %}<small>{{ item.director_comment }}</small>{% endif %}
+    </div>
+  {% empty %}
+    <p class="spotz-muted">No warnings recorded.</p>
+  {% endfor %}
+</div>
+
+<div class="spotz-panel">
+  <h3>Suspension History</h3>
+  {% for item in suspensions %}
+    <div class="spotz-history-row">
+      <strong>{{ item.start_date }} ? {{ item.end_date }}</strong>
+      <span>Issued by {{ item.issued_by.get_full_name|default:item.issued_by.username }}</span>
+      <p>{{ item.reason }}</p>
+      {% if item.activated_early %}
+        <small>Activated early by {{ item.activated_by.get_full_name|default:item.activated_by.username }} at {{ item.activated_at }}</small>
+      {% endif %}
+    </div>
+  {% empty %}
+    <p class="spotz-muted">No suspension history.</p>
+  {% endfor %}
+</div>
+
+<div class="spotz-panel">
+  <h3>Leave History</h3>
+  {% for item in leave_records %}
+    <div class="spotz-history-row">
+      <strong>{{ item.get_leave_type_display }} ? {{ item.start_date }} ? {{ item.end_date }}</strong>
+      <span>Approved by {{ item.approved_by.get_full_name|default:item.approved_by.username }}</span>
+      <p>{{ item.reason }}</p>
+    </div>
+  {% empty %}
+    <p class="spotz-muted">No leave history.</p>
+  {% endfor %}
+</div>
+
+<div class="spotz-panel">
+  <h3>Deployment History</h3>
+  {% for item in deployments %}
+    <div class="spotz-history-row">
+      <strong>{{ item.from_operating_point.name|default:"Initial assignment" }} ? {{ item.to_operating_point.name }}</strong>
+      <span>{{ item.changed_at }} ? {{ item.changed_by.get_full_name|default:item.changed_by.username }}</span>
+      <p>{{ item.reason }}</p>
+    </div>
+  {% empty %}
+    <p class="spotz-muted">No deployment history.</p>
+  {% endfor %}
+</div>
+
+{% if termination %}
+<div class="spotz-panel spotz-panel-danger">
+  <h3>Termination</h3>
+  <p><strong>{{ termination.termination_date }}</strong></p>
+  <p>{{ termination.reason }}</p>
+  {% if termination.director_comment %}<p>{{ termination.director_comment }}</p>{% endif %}
+  <small>Recorded by {{ termination.terminated_by.get_full_name|default:termination.terminated_by.username }} on {{ termination.terminated_at }}</small>
+</div>
+{% endif %}
+{% endblock %}

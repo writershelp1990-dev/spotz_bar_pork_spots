@@ -1,0 +1,126 @@
+﻿# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+
+# ============================================================
+# Virtual environments
+# ============================================================
+.venv/
+venv/
+env/
+ENV/
+
+# ============================================================
+# Django
+# ============================================================
+*.log
+local_settings.py
+
+# ============================================================
+# Database files (test and local dev)
+# ============================================================
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+db.sqlite3-journal
+
+# ============================================================
+# Media / static output
+# ============================================================
+/media/
+/staticfiles/
+/static_collected/
+
+# ============================================================
+# Environment / secrets
+# ============================================================
+.env
+.env.*
+*.env
+secrets.json
+
+# ============================================================
+# Editors / IDE
+# ============================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================================================
+# OS
+# ============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# Test / coverage
+# ============================================================
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ============================================================
+# Local backups (all naming conventions used in this project)
+# ============================================================
+*.bak_*
+*.backup_*
+*.backup
+*.before_patch
+*.pre_foundation_backup
+*.broken
+*.orig
+*.rej
+
+# ============================================================
+# Backup / inspection directories
+# ============================================================
+.safe_change_backups/
+backups/
+migration_backups/
+phase1_auth_backups/
+phase1_auth_inspection_*/
+phase1_auth_recovery_backups/
+phase1_authorization_backups/
+phase1_authorization_inspection/
+phase1_employee_management_design/
+phase1_operating_point_backups/
+phase1_permission_design/
+phase1_permissions_backups/
+phase1_permissions_inspection/
+phase1_role_backups/
+phase1_role_management_backups/
+safe_pos_backup_*/
+
+# ============================================================
+# Database dumps
+# ============================================================
+*.dump
+
+# ============================================================
+# Temporary test settings
+# ============================================================
+config/test_settings_spotz_temp.py
+
+# ============================================================
+# Business-day test artifacts
+# ============================================================
+.business_day_test.sqlite3
+spotz_catalogue_test.sqlite3
+default_1.sqlite3
+default_2.sqlite3

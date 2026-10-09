@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Invitation Sent | SPOTZ BAR & PORK SPOTS{% endblock %}
+
+{% block content %}
+<section class="invite-success-page">
+
+    <div class="invite-success-card">
+
+        <div class="invite-success-glow invite-success-glow-one"></div>
+        <div class="invite-success-glow invite-success-glow-two"></div>
+
+        <div class="invite-success-icon" aria-hidden="true">
+            <span>&#10003;</span>
+        </div>
+
+        <div class="invite-success-eyebrow">
+            INVITATION SENT SUCCESSFULLY
+        </div>
+
+        <h1>Invitation sent successfully.</h1>
+
+        <p class="invite-success-intro">
+            A secure invitation has been sent to the staff member.
+            They can use the link to complete their account and set their password.
+        </p>
+
+        <div class="invite-success-status">
+            <span class="invite-success-status-dot"></span>
+            EMAIL DELIVERY INITIATED
+        </div>
+
+        <div class="invite-success-details">
+
+            <div class="invite-success-detail invite-success-detail-person">
+                <div class="invite-success-detail-icon">&#128100;</div>
+                <div>
+                    <span>Staff member</span>
+                    <strong>{{ invitation.full_name }}</strong>
+                </div>
+            </div>
+
+            <div class="invite-success-detail invite-success-detail-email">
+                <div class="invite-success-detail-icon">&#9993;</div>
+                <div>
+                    <span>Email address</span>
+                    <strong>{{ invitation.email }}</strong>
+                </div>
+            </div>
+
+            <div class="invite-success-detail invite-success-detail-role">
+                <div class="invite-success-detail-icon">&#9733;</div>
+                <div>
+                    <span>Role</span>
+                    <strong>{{ invitation.role }}</strong>
+                </div>
+            </div>
+
+            <div class="invite-success-detail invite-success-detail-point">
+                <div class="invite-success-detail-icon">&#9678;</div>
+                <div>
+                    <span>Operating point</span>
+                    <strong>{{ invitation.operating_point }}</strong>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="invite-success-window">
+            <div class="invite-success-window-icon">&#9200;</div>
+            <div>
+                <span>SECURE INVITATION WINDOW</span>
+                <strong>24 hours</strong>
+            </div>
+        </div>
+
+        <div class="invite-success-actions">
+            <a href="{% url 'manage_staff' %}" class="spotz-btn spotz-btn-primary">
+                Back to Staff Management
+            </a>
+
+            <a href="{% url 'invite_staff' %}" class="spotz-btn spotz-btn-secondary">
+                Send Another Invitation <span aria-hidden="true">&#8594;</span>
+            </a>
+        </div>
+
+        <p class="invite-success-note">
+            This invitation is single-use and expires automatically after 24 hours.
+        </p>
+
+    </div>
+
+</section>
+{% endblock %}

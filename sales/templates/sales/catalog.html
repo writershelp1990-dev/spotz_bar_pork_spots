@@ -1,0 +1,60 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+<h1>Products and catalogue management</h1>
+
+<p>
+  <a href="{% url 'sales:category_add' %}">Add category</a> |
+  <a href="{% url 'sales:unit_add' %}">Add unit</a> |
+  <a href="{% url 'sales:product_add' %}">Add product</a> |
+  <a href="{% url 'sales:price_add' %}">Add selling price</a> |
+  <a href="{% url 'sales:stock' %}">View stock</a>
+</p>
+
+<table>
+<thead>
+<tr>
+  <th>Product</th><th>System code</th><th>Brand</th><th>Variety</th>
+  <th>Packaging</th><th>Size</th><th>Category</th><th>Selling unit</th>
+  <th>Current selling price (KES)</th><th>Inventory</th><th>Status</th><th>Action</th>
+</tr>
+</thead>
+<tbody>
+{% for p in products %}
+<tr>
+  <td>{{ p.name }}</td>
+  <td>{{ p.code }}</td>
+  <td>{{ p.brand|default:"?" }}</td>
+  <td>{{ p.variety|default:"?" }}</td>
+  <td>{{ p.packaging|default:"?" }}</td>
+  <td>{% if p.size_value and p.size_unit %}{{ p.size_value }} {{ p.size_unit.abbreviation }}{% else %}?{% endif %}</td>
+  <td>{{ p.category }}</td>
+  <td>{{ p.selling_unit.abbreviation }}</td>
+  <td>{% if p.current_price != None %}{{ p.current_price }}{% else %}Not set{% endif %}</td>
+  <td>{{ p.track_inventory|yesno:"Tracked,Not tracked" }}</td>
+  <td>{{ p.is_active|yesno:"Active,Inactive" }}</td>
+  <td><a href="{% url 'sales:product_edit' p.pk %}">Edit</a></td>
+</tr>
+{% empty %}
+<tr><td colspan="12">No products yet. Add units and categories, then create products and selling prices.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+
+<h2>Recent selling-price history</h2>
+<table>
+<thead><tr><th>Date effective</th><th>Product</th><th>Price (KES)</th><th>Unit</th><th>Notes</th></tr></thead>
+<tbody>
+{% for item in recent_prices %}
+<tr>
+  <td>{{ item.effective_from }}</td>
+  <td>{{ item.product.name }}</td>
+  <td>{{ item.price }}</td>
+  <td>{{ item.unit.abbreviation }}</td>
+  <td>{{ item.notes|default:"?" }}</td>
+</tr>
+{% empty %}
+<tr><td colspan="5">No selling-price history recorded yet.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

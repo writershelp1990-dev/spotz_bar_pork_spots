@@ -1,0 +1,228 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Invite Staff | SPOTZ BAR & PORK SPOTS{% endblock %}
+
+{% block content %}
+<div class="invite-page">
+
+    <section class="invite-hero">
+        <div class="invite-hero-content">
+
+            <div class="invite-kicker">
+                <span class="invite-pulse"></span>
+                STAFF MANAGEMENT
+            </div>
+
+            <h1>Invite <span>Staff</span></h1>
+
+            <p>
+                Add a new team member to SPOTZ with a secure invitation,
+                controlled role assignment and operating-point access.
+            </p>
+
+            <div class="invite-badges">
+                <span>24H SECURE LINK</span>
+                <span>ROLE CONTROLLED</span>
+                <span>DIRECTOR ACCESS</span>
+            </div>
+
+        </div>
+
+        <div class="invite-visual" aria-hidden="true">
+            <div class="invite-glow invite-glow-one"></div>
+            <div class="invite-glow invite-glow-two"></div>
+
+            <div class="invite-ring invite-ring-one"></div>
+            <div class="invite-ring invite-ring-two"></div>
+
+            <div class="invite-center">
+                <div class="invite-plus">+</div>
+            </div>
+
+            <span class="invite-orb invite-orb-one"></span>
+            <span class="invite-orb invite-orb-two"></span>
+            <span class="invite-orb invite-orb-three"></span>
+        </div>
+    </section>
+
+
+    <div class="invite-grid">
+
+        <main class="invite-form-card">
+
+            <div class="invite-card-top">
+                <div>
+                    <span class="invite-label">NEW TEAM MEMBER</span>
+                    <h2>Account Invitation</h2>
+                    <p>
+                        Complete the details below. The employee will receive
+                        a secure email invitation to finish account setup.
+                    </p>
+                </div>
+
+                <div class="invite-ready">
+                    <span></span>
+                    SYSTEM READY
+                </div>
+            </div>
+
+
+            <form method="post" class="invite-form">
+                {% csrf_token %}
+
+                <div class="invite-fields">
+
+                    {% for field in form %}
+                        <div class="invite-field{% if field.name == 'full_name' or field.name == 'email' %} invite-field-wide{% endif %}">
+
+                            <div class="invite-field-label">
+                                <label for="{{ field.id_for_label }}">
+                                    {{ field.label }}
+                                </label>
+
+                                {% if field.required %}
+                                    <span>REQUIRED</span>
+                                {% endif %}
+                            </div>
+
+                            {{ field }}
+
+                            {% for error in field.errors %}
+                                <div class="invite-error">{{ error }}</div>
+                            {% endfor %}
+
+                            {% if field.help_text %}
+                                <small>{{ field.help_text }}</small>
+                            {% endif %}
+
+                        </div>
+                    {% endfor %}
+
+                </div>
+
+
+                <div class="invite-security">
+
+                    <div class="invite-security-symbol">✓</div>
+
+                    <div>
+                        <strong>Secure onboarding</strong>
+                        <p>
+                            The invitation link expires after 24 hours.
+                            The employee creates their own password through
+                            the secure activation process.
+                        </p>
+                    </div>
+
+                </div>
+
+
+                <div class="invite-actions">
+
+                    <a href="{% url 'manage_staff' %}" class="invite-cancel">
+                        Cancel
+                    </a>
+
+                    <button type="submit" class="invite-submit">
+                        <span>Send Invitation</span>
+                        <b>→</b>
+                    </button>
+
+                </div>
+
+            </form>
+
+        </main>
+
+
+        <aside class="invite-sidebar">
+
+            <section class="invite-info-card invite-info-access">
+
+                <div class="invite-info-icon">◆</div>
+
+                <span class="invite-label">ACCESS CONTROL</span>
+
+                <h3>Role-first security</h3>
+
+                <p>
+                    Staff permissions are controlled through their assigned
+                    role and operating point.
+                </p>
+
+                <div class="invite-stat">
+                    <span>ROLE</span>
+                    <strong>Required</strong>
+                </div>
+
+                <div class="invite-stat">
+                    <span>OPERATING POINT</span>
+                    <strong>Assigned</strong>
+                </div>
+
+            </section>
+
+
+            <section class="invite-info-card invite-info-lifecycle">
+
+                <div class="invite-info-icon">✦</div>
+
+                <span class="invite-label">STAFF LIFECYCLE</span>
+
+                <h3>Controlled onboarding</h3>
+
+                <p>
+                    The employee receives the invitation and completes
+                    their account setup securely.
+                </p>
+
+                <div class="invite-flow">
+                    <span class="invite-flow-active">INVITED</span>
+                    <i>→</i>
+                    <span>ACTIVE</span>
+                </div>
+
+            </section>
+
+
+            <section class="invite-info-card invite-info-security">
+
+                <div class="invite-info-icon">✓</div>
+
+                <span class="invite-label">SECURITY</span>
+
+                <h3>Protected workflow</h3>
+
+                <p>
+                    Invitation links are time-limited and account credentials
+                    are created by the employee.
+                </p>
+
+                <div class="invite-security-status">
+                    <span></span>
+                    SECURE INVITATION
+                </div>
+
+            </section>
+
+
+            <div class="invite-admin-footer">
+                <span></span>
+                SPOTZ DIRECTOR CONTROL
+            </div>
+
+        </aside>
+
+    </div>
+
+
+    <footer class="invite-footer">
+        <span>SPOTZ BAR &amp; PORK SPOTS</span>
+        <i>•</i>
+        <span>STAFF MANAGEMENT</span>
+        <i>•</i>
+        <span>SECURE WORKFLOW</span>
+    </footer>
+
+</div>
+{% endblock %}

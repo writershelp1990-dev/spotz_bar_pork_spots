@@ -1,0 +1,172 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="staff-directory-page">
+
+    <div class="page-header">
+        <div>
+            <span class="eyebrow">DIRECTOR CONTROL</span>
+            <h1>Staff Directory</h1>
+            <p>View staff status, roles, deployment information, and employment records.</p>
+        </div>
+
+        <a class="btn-secondary" href="{% url 'manage_staff' %}">
+            ← Staff Administration
+        </a>
+    </div>
+
+    <section class="staff-stat-grid">
+        <a href="?status=ACTIVE" class="staff-stat-card">
+            <span>ACTIVE</span>
+            <strong>{{ status_counts.ACTIVE }}</strong>
+        </a>
+
+        <a href="?status=INVITED" class="staff-stat-card">
+            <span>INVITED</span>
+            <strong>{{ status_counts.INVITED }}</strong>
+        </a>
+
+        <a href="?status=OFF_DUTY" class="staff-stat-card">
+            <span>OFF DUTY</span>
+            <strong>{{ status_counts.OFF_DUTY }}</strong>
+        </a>
+
+        <a href="?status=ON_LEAVE" class="staff-stat-card">
+            <span>ON LEAVE</span>
+            <strong>{{ status_counts.ON_LEAVE }}</strong>
+        </a>
+
+        <a href="?status=SUSPENDED" class="staff-stat-card">
+            <span>SUSPENDED</span>
+            <strong>{{ status_counts.SUSPENDED }}</strong>
+        </a>
+
+        <a href="?status=TERMINATED" class="staff-stat-card">
+            <span>TERMINATED</span>
+            <strong>{{ status_counts.TERMINATED }}</strong>
+        </a>
+    </section>
+
+    <section class="spotz-panel staff-filter-panel">
+        <form method="get" class="staff-filter-form">
+            <div class="form-field">
+                <label for="staff-search">Search staff</label>
+                <input
+                    id="staff-search"
+                    type="search"
+                    name="q"
+                    value="{{ search_query }}"
+                    placeholder="Name, email, phone or employee number"
+                >
+            </div>
+
+            <div class="form-field">
+                <label for="staff-status">Status</label>
+                <select id="staff-status" name="status">
+                    <option value="">All statuses</option>
+                    <option value="INVITED" {% if selected_status == "INVITED" %}selected{% endif %}>Invited</option>
+                    <option value="ACTIVE" {% if selected_status == "ACTIVE" %}selected{% endif %}>Active</option>
+                    <option value="OFF_DUTY" {% if selected_status == "OFF_DUTY" %}selected{% endif %}>Off Duty</option>
+                    <option value="ON_LEAVE" {% if selected_status == "ON_LEAVE" %}selected{% endif %}>On Leave</option>
+                    <option value="SUSPENDED" {% if selected_status == "SUSPENDED" %}selected{% endif %}>Suspended</option>
+                    <option value="TERMINATED" {% if selected_status == "TERMINATED" %}selected{% endif %}>Terminated</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="staff-role">Role</label>
+                <select id="staff-role" name="role">
+                    <option value="">All roles</option>
+                    {% for role in roles %}
+                        <option value="{{ role.role_definition__code }}"
+                            {% if selected_role == role.role_definition__code %}selected{% endif %}>
+                            {{ role.role_definition__name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="staff-filter-actions">
+                <button type="submit" class="btn-primary">Filter</button>
+                <a href="{% url 'staff_directory' %}" class="btn-secondary">Clear</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="spotz-panel">
+        <div class="section-heading">
+            <div>
+                <span class="eyebrow">STAFF</span>
+                <h2>Employee Directory</h2>
+            </div>
+            <span class="staff-result-count">{{ staff_members|length }} shown</span>
+        </div>
+
+        <div class="staff-table-wrap">
+            <table class="staff-table">
+                <thead>
+                    <tr>
+                        <th>Staff</th>
+                        <th>Role</th>
+                        <th>Deployment</th>
+                        <th>Status</th>
+                        <th>Date Joined</th>
+                        <th></th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for staff in staff_members %}
+                    <tr>
+                        <td>
+                            <div class="staff-name">
+                                {{ staff.get_full_name|default:staff.email }}
+                            </div>
+                            <div class="staff-subtext">
+                                {% if staff.phone %} · {{ staff.phone }}{% endif %}
+                            </div>
+                        </td>
+
+                        <td>
+                            {% if staff.role_definition %}
+                                {{ staff.role_definition.name }}
+                            {% else %}
+                                {{ staff.get_role_display }}
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <span class="staff-muted">Not assigned</span>
+                        </td>
+
+                        <td>
+                            <span class="staff-status staff-status-{{ staff.employment_status|lower }}">
+                                {{ staff.get_employment_status_display }}
+                            </span>
+                        </td>
+
+                        <td>
+                            {{ staff.date_joined|date:"d M Y"|default:"—" }}
+                        </td>
+
+                        <td>
+                            <a class="btn-small" href="{% url 'staff_profile' staff.pk %}">
+                                View →
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="staff-empty-state">
+                            No staff matched the current filters.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</div>
+{% endblock %}
+

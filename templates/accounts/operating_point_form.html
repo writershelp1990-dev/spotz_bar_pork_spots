@@ -1,0 +1,380 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | SPOTZ{% endblock %}
+
+{% block content %}
+<div class="op-editor-page">
+
+    <section class="op-editor-hero">
+        <div class="op-editor-hero-glow op-editor-glow-one"></div>
+        <div class="op-editor-hero-glow op-editor-glow-two"></div>
+
+        <div class="op-editor-hero-content">
+
+            <div class="op-editor-kicker">
+                <span class="op-editor-kicker-dot"></span>
+                MANAGEMENT / OPERATING POINTS
+            </div>
+
+            <div class="op-editor-heading-row">
+
+                <div>
+                    <h1>
+                        {% if operating_point %}
+                            Edit <span>Operating Point</span>
+                        {% else %}
+                            Add <span>Operating Point</span>
+                        {% endif %}
+                    </h1>
+
+                    <p>
+                        {% if operating_point %}
+                            Update the controlled SPOTZ operating-point configuration.
+                        {% else %}
+                            Create a new controlled SPOTZ operating point.
+                        {% endif %}
+                    </p>
+                </div>
+
+                <div class="op-editor-status-badge">
+                    <span class="op-editor-status-dot"></span>
+                    SYSTEM ONLINE
+                </div>
+
+            </div>
+
+        </div>
+    </section>
+
+
+    <div class="op-editor-toolbar">
+
+        <a href="{% url 'manage_operating_points' %}" class="op-editor-back">
+            <span class="op-editor-back-icon">←</span>
+            <span>Back to Operating Points</span>
+        </a>
+
+        {% if operating_point %}
+            <div class="op-editor-record-label">
+                RECORD #{{ operating_point.pk }}
+            </div>
+        {% endif %}
+
+    </div>
+
+
+    <div class="op-editor-layout">
+
+        <main class="op-editor-main">
+
+            <section class="op-editor-card">
+
+                <div class="op-editor-card-header">
+                    <div class="op-editor-card-icon op-editor-icon-pink">
+                        ◎
+                    </div>
+
+                    <div>
+                        <span class="op-editor-card-kicker">
+                            OPERATING POINT CONFIGURATION
+                        </span>
+                        <h2>Location Details</h2>
+                        <p>Define how this operating point appears across SPOTZ.</p>
+                    </div>
+                </div>
+
+
+                <form method="post" class="op-editor-form">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="op-editor-errors">
+                            {% for error in form.non_field_errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+
+                    <div class="op-editor-field-group op-editor-field-code">
+                        <div class="op-editor-field-heading">
+                            <label for="{{ form.code.id_for_label }}">
+                                Operating Point Code
+                            </label>
+
+                            {% if operating_point and operating_point.is_system_point %}
+                                <span class="op-editor-protected-pill">
+                                    🔒 PROTECTED
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        {{ form.code }}
+
+                        {% if form.code.errors %}
+                            <div class="op-editor-field-errors">
+                                {% for error in form.code.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        {% if form.code.help_text %}
+                            <div class="op-editor-help">
+                                {{ form.code.help_text }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+
+                    <div class="op-editor-field-group">
+                        <div class="op-editor-field-heading">
+                            <label for="{{ form.name.id_for_label }}">
+                                Operating Point Name
+                            </label>
+                            <span class="op-editor-required">REQUIRED</span>
+                        </div>
+
+                        {{ form.name }}
+
+                        {% if form.name.errors %}
+                            <div class="op-editor-field-errors">
+                                {% for error in form.name.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+
+                    <div class="op-editor-field-group">
+                        <div class="op-editor-field-heading">
+                            <label for="{{ form.description.id_for_label }}">
+                                Description
+                            </label>
+                            <span class="op-editor-optional">OPTIONAL</span>
+                        </div>
+
+                        {{ form.description }}
+
+                        {% if form.description.errors %}
+                            <div class="op-editor-field-errors">
+                                {% for error in form.description.errors %}
+                                    <span>{{ error }}</span>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+
+                    <div class="op-editor-active-panel">
+
+                        <div class="op-editor-active-copy">
+                            <div class="op-editor-active-icon">✓</div>
+
+                            <div>
+                                <strong>Operating Point Status</strong>
+                                <span>
+                                    Active locations can receive new staff assignments.
+                                </span>
+                            </div>
+                        </div>
+
+                        <label class="op-editor-switch">
+                            {{ form.is_active }}
+                            <span class="op-editor-switch-track">
+                                <span class="op-editor-switch-thumb"></span>
+                            </span>
+                        </label>
+
+                    </div>
+
+
+                    <div class="op-editor-actions">
+
+                        <button type="submit" class="op-editor-save">
+                            <span class="op-editor-save-icon">✓</span>
+                            {{ submit_label }}
+                        </button>
+
+                        <a href="{% url 'manage_operating_points' %}" class="op-editor-cancel">
+                            Cancel
+                        </a>
+
+                    </div>
+
+                </form>
+
+            </section>
+
+        </main>
+
+
+        <aside class="op-editor-sidebar">
+
+            {% if operating_point %}
+
+                <section class="op-editor-side-card op-editor-identity-card">
+
+                    <div class="op-editor-side-top">
+                        <span class="op-editor-side-kicker">CURRENT RECORD</span>
+
+                        {% if operating_point.is_active %}
+                            <span class="op-editor-live-pill">
+                                <span></span>
+                                ACTIVE
+                            </span>
+                        {% else %}
+                            <span class="op-editor-offline-pill">
+                                <span></span>
+                                INACTIVE
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="op-editor-identity-symbol">
+                        ◎
+                    </div>
+
+                    <h3>{{ operating_point.name }}</h3>
+
+                    <div class="op-editor-code-display">
+                        {{ operating_point.code }}
+                    </div>
+
+                    {% if operating_point.is_system_point %}
+                        <div class="op-editor-system-note">
+                            <span>🔒</span>
+                            <div>
+                                <strong>System Operating Point</strong>
+                                <p>
+                                    This location is protected and its code cannot be changed.
+                                </p>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="op-editor-custom-note">
+                            <span>✦</span>
+                            <div>
+                                <strong>Custom Operating Point</strong>
+                                <p>
+                                    This location was added by SPOTZ management.
+                                </p>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                </section>
+
+
+                <section class="op-editor-side-card op-editor-history-card">
+
+                    <div class="op-editor-side-heading">
+                        <div class="op-editor-side-icon op-editor-icon-purple">
+                            ◷
+                        </div>
+
+                        <div>
+                            <span>RECORD HISTORY</span>
+                            <h3>History Protected</h3>
+                        </div>
+                    </div>
+
+                    <p>
+                        Operating points are never deleted. Deactivate a location when it
+                        should no longer receive new staff assignments.
+                    </p>
+
+                    <div class="op-editor-history-row">
+                        <span>Created</span>
+                        <strong>{{ operating_point.created_at|date:"d M Y, H:i" }}</strong>
+                    </div>
+
+                    <div class="op-editor-history-row">
+                        <span>Last updated</span>
+                        <strong>{{ operating_point.updated_at|date:"d M Y, H:i" }}</strong>
+                    </div>
+
+                </section>
+
+            {% else %}
+
+                <section class="op-editor-side-card op-editor-create-card">
+
+                    <div class="op-editor-side-heading">
+                        <div class="op-editor-side-icon op-editor-icon-cyan">
+                            +
+                        </div>
+
+                        <div>
+                            <span>NEW LOCATION</span>
+                            <h3>Operating Point</h3>
+                        </div>
+                    </div>
+
+                    <p>
+                        Create a new controlled location for SPOTZ operations.
+                    </p>
+
+                    <div class="op-editor-create-list">
+                        <div>
+                            <span>01</span>
+                            Define a unique code
+                        </div>
+                        <div>
+                            <span>02</span>
+                            Give the location a name
+                        </div>
+                        <div>
+                            <span>03</span>
+                            Activate when ready
+                        </div>
+                    </div>
+
+                </section>
+
+            {% endif %}
+
+
+            <section class="op-editor-side-card op-editor-security-card">
+
+                <div class="op-editor-security-header">
+                    <span class="op-editor-security-shield">◆</span>
+                    <strong>SPOTZ CONTROL</strong>
+                </div>
+
+                <p>
+                    Operating-point configuration is restricted to authorized management.
+                    Changes are preserved for operational history.
+                </p>
+
+                <div class="op-editor-security-status">
+                    <span></span>
+                    DIRECTOR AUTHORIZED
+                </div>
+
+            </section>
+
+        </aside>
+
+    </div>
+
+
+    <section class="op-editor-footer-security">
+
+        <div class="op-editor-footer-icon">
+            🔒
+        </div>
+
+        <div>
+            <strong>History protected</strong>
+            <span>
+                Operating points cannot be deleted. Deactivate one when it should no longer
+                receive new staff assignments.
+            </span>
+        </div>
+
+    </section>
+
+</div>
+{% endblock %}

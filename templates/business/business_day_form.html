@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="spotz-page">
+    <div class="spotz-page-header">
+        <div>
+            <h1>{{ title }}</h1>
+            {% if business_day %}
+                <p>Business date: {{ business_day.business_date }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="spotz-panel">
+        <form method="post">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="spotz-form-errors">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            {% for field in form %}
+                <div class="spotz-form-field">
+                    <label for="{{ field.id_for_label }}">
+                        {{ field.label }}
+                    </label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <div class="spotz-form-errors">
+                            {{ field.errors }}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+
+            <div class="spotz-actions">
+                <button type="submit" class="spotz-btn spotz-btn-primary">
+                    {{ submit_label }}
+                </button>
+                <a href="{% url 'business_day:dashboard' %}" class="spotz-btn">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

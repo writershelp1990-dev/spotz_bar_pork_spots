@@ -1,0 +1,11 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="auth-shell">
+    <div class="auth-card">
+        <h1>Invitation Already Used</h1>
+        <p>This invitation has already been completed.</p>
+        <a href="{% url 'login' %}" class="btn-primary">Go to Login</a>
+    </div>
+</div>
+{% endblock %}

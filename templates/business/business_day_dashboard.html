@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="spotz-page">
+    <div class="spotz-page-header">
+        <div>
+            <h1>Business Day</h1>
+            <p>Director control for opening, closing, reopening and staffing coverage.</p>
+        </div>
+        {% if not open_business_day %}
+            <a href="{% url 'business_day:open' %}" class="spotz-btn spotz-btn-primary">
+                Open Business Day
+            </a>
+        {% endif %}
+    </div>
+
+    {% if previous_warning %}
+        <div class="spotz-panel">
+            <h3>Previous Open Business Day</h3>
+            <p>
+                Business day {{ previous_warning.business_date }}
+                is still open.
+            </p>
+        </div>
+    {% endif %}
+
+    <div class="spotz-panel">
+        {% if open_business_day %}
+            <h2>OPEN — {{ open_business_day.business_date }}</h2>
+            <p>
+                Opened:
+                {{ open_business_day.actual_opened_at|date:"Y-m-d H:i" }}
+            </p>
+
+            <div class="spotz-actions">
+                <a
+                    href="{% url 'business_day:close' open_business_day.pk %}"
+                    class="spotz-btn spotz-btn-primary"
+                >
+                    Close Business Day
+                </a>
+
+                <a
+                    href="{% url 'business_day:deployment_add' %}"
+                    class="spotz-btn"
+                >
+                    Deploy Staff
+                </a>
+            </div>
+        {% elif latest_business_day %}
+            <h2>CLOSED — {{ latest_business_day.business_date }}</h2>
+            <p>
+                Closed:
+                {{ latest_business_day.actual_closed_at|date:"Y-m-d H:i" }}
+            </p>
+            <a
+                href="{% url 'business_day:reopen' latest_business_day.pk %}"
+                class="spotz-btn spotz-btn-primary"
+            >
+                Reopen Business Day
+            </a>
+        {% else %}
+            <h2>No Business Day Yet</h2>
+            <a
+                href="{% url 'business_day:open' %}"
+                class="spotz-btn spotz-btn-primary"
+            >
+                Open First Business Day
+            </a>
+        {% endif %}
+    </div>
+
+    <div class="spotz-panel">
+        <div class="spotz-page-header">
+            <div>
+                <h2>Staff Coverage</h2>
+                <p>Active deployment assignments for the open business day.</p>
+            </div>
+        </div>
+
+        {% if deployments %}
+            {% for deployment in deployments %}
+                <div class="spotz-list-row">
+                    <div>
+                        <strong>
+                            {{ deployment.employee.user.get_full_name|default:deployment.employee.user.username }}
+                        </strong>
+                        <div>
+                            {{ deployment.operating_point.name }}
+                            ·
+                            {{ deployment.start_time|time:"H:i" }}
+                           –{{ deployment.end_time|time:"H:i" }}
+                        </div>
+                    </div>
+
+                    <form
+                        method="post"
+                        action="{% url 'business_day:deployment_cancel' deployment.pk %}"
+                    >
+                        {% csrf_token %}
+                        <input
+                            type="text"
+                            name="reason"
+                            placeholder="Cancellation reason"
+                            required
+                        >
+                        <button type="submit" class="spotz-btn">
+                            Cancel
+                        </button>
+                    </form>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No active deployments recorded.</p>
+        {% endif %}
+    </div>
+
+    <div class="spotz-panel">
+        <h2>Configuration</h2>
+        <a href="{% url 'business_day:holidays' %}" class="spotz-btn">
+            Manage Public Holidays
+        </a>
+    </div>
+</div>
+{% endblock %}

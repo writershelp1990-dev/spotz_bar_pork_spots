@@ -1,0 +1,15 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+<h1>Receipt {{ sale.sale_number }}</h1>
+<p>Date: {{ sale.sold_at }} | Point: {{ sale.operating_point.name }}</p>
+<p>Cashier: {{ sale.cashier }} | Payment: {{ sale.get_payment_method_display }}</p>
+<table>
+<thead><tr><th>Product</th><th>Quantity</th><th>Unit price (KES)</th><th>Line total (KES)</th></tr></thead>
+<tbody>{% for i in sale.items.all %}
+<tr><td>{{ i.product_name_snapshot }}</td><td>{{ i.quantity }} {{ i.unit_name_snapshot }}</td><td>{{ i.unit_price }}</td><td>{{ i.line_total }}</td></tr>
+{% endfor %}</tbody></table>
+<p>Subtotal: KES {{ sale.subtotal }}</p>
+<h2>Total: KES {{ sale.total }}</h2>
+<p>Tendered: KES {{ sale.amount_tendered }} | Change: KES {{ sale.change_due }}</p>
+<button onclick="window.print()">Print receipt</button>
+{% endblock %}

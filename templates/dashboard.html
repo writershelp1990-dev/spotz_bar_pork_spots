@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | SPOTZ BAR & PORK SPOTS{% endblock %}
+
+{% block page_heading %}Dashboard{% endblock %}
+
+{% block content %}
+
+<section style="
+    padding: 34px;
+    border-radius: 24px;
+    background:
+        radial-gradient(circle at 90% 10%, rgba(139,92,246,.25), transparent 30%),
+        radial-gradient(circle at 10% 90%, rgba(255,183,3,.16), transparent 30%),
+        linear-gradient(135deg, #151521, #0e0e15);
+    border: 1px solid rgba(255,255,255,.09);
+    box-shadow: 0 25px 70px rgba(0,0,0,.28);
+">
+
+    <div style="
+        color:#ffb703;
+        font-size:10px;
+        font-weight:800;
+        letter-spacing:.18em;
+        text-transform:uppercase;
+        margin-bottom:10px;
+    ">
+        Welcome to SPOTZ
+    </div>
+
+    <h2 style="
+        margin:0;
+        font-size:clamp(30px,5vw,52px);
+        line-height:1;
+        letter-spacing:-.04em;
+    ">
+        Run the business.<br>
+        <span style="opacity:.55;">Control every shilling.</span>
+    </h2>
+
+    <p style="
+        max-width:650px;
+        margin:20px 0 0;
+        color:#a5a5b4;
+        line-height:1.7;
+        font-size:14px;
+    ">
+        Your SPOTZ management system will bring sales, stock, pork control,
+        expenses, staff, business-day control and profitability into one place.
+    </p>
+
+</section>
+
+
+<section style="
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+    gap:16px;
+    margin-top:20px;
+">
+
+    <div style="
+        padding:22px;
+        border-radius:18px;
+        background:linear-gradient(145deg,#181820,#111118);
+        border:1px solid rgba(255,183,3,.15);
+    ">
+        <div style="color:#ffb703;font-size:11px;font-weight:800;">
+            BAR
+        </div>
+        <div style="font-size:25px;font-weight:800;margin-top:12px;">
+            Sales
+        </div>
+        <div style="color:#777786;font-size:11px;margin-top:6px;">
+            Liquor & beverage operations
+        </div>
+    </div>
+
+    <div style="
+        padding:22px;
+        border-radius:18px;
+        background:linear-gradient(145deg,#181820,#111118);
+        border:1px solid rgba(255,77,109,.15);
+    ">
+        <div style="color:#ff4d6d;font-size:11px;font-weight:800;">
+            BUTCHERY
+        </div>
+        <div style="font-size:25px;font-weight:800;margin-top:12px;">
+            Stock
+        </div>
+        <div style="color:#777786;font-size:11px;margin-top:6px;">
+            Raw pork control
+        </div>
+    </div>
+
+    <div style="
+        padding:22px;
+        border-radius:18px;
+        background:linear-gradient(145deg,#181820,#111118);
+        border:1px solid rgba(139,92,246,.15);
+    ">
+        <div style="color:#a78bfa;font-size:11px;font-weight:800;">
+            CHOMA
+        </div>
+        <div style="font-size:25px;font-weight:800;margin-top:12px;">
+            Portions
+        </div>
+        <div style="color:#777786;font-size:11px;margin-top:6px;">
+            Pork consumption control
+        </div>
+    </div>
+
+    <div style="
+        padding:22px;
+        border-radius:18px;
+        background:linear-gradient(145deg,#181820,#111118);
+        border:1px solid rgba(0,212,255,.15);
+    ">
+        <div style="color:#00d4ff;font-size:11px;font-weight:800;">
+            KITCHEN
+        </div>
+        <div style="font-size:25px;font-weight:800;margin-top:12px;">
+            Food
+        </div>
+        <div style="color:#777786;font-size:11px;margin-top:6px;">
+            Kitchen operations
+        </div>
+    </div>
+
+</section>
+
+
+{% if dashboard_business_day_available and user.is_director %}
+<section style="
+    margin-top:20px;
+    padding:24px;
+    border-radius:22px;
+    background:
+        radial-gradient(circle at 90% 10%, rgba(255,183,3,.12), transparent 32%),
+        linear-gradient(145deg,#181820,#101017);
+    border:1px solid rgba(255,183,3,.18);
+    box-shadow:0 18px 55px rgba(0,0,0,.22);
+">
+    <div style="
+        display:flex;
+        align-items:flex-start;
+        justify-content:space-between;
+        gap:18px;
+        flex-wrap:wrap;
+    ">
+        <div>
+            <div style="
+                color:#ffb703;
+                font-size:10px;
+                font-weight:800;
+                letter-spacing:.18em;
+                text-transform:uppercase;
+                margin-bottom:8px;
+            ">
+                Business Day
+            </div>
+
+            {% if dashboard_open_business_day %}
+                <h2 style="margin:0;font-size:25px;">
+                    OPEN — {{ dashboard_open_business_day.business_date }}
+                </h2>
+
+                <p style="
+                    margin:8px 0 0;
+                    color:#8f8f9f;
+                    font-size:12px;
+                    line-height:1.6;
+                ">
+                    Opened
+                    {{ dashboard_open_business_day.actual_opened_at|date:"Y-m-d H:i" }}
+                </p>
+
+                {% if dashboard_previous_open_warning %}
+                    <div style="
+                        margin-top:14px;
+                        padding:12px 14px;
+                        border-radius:12px;
+                        background:rgba(255,183,3,.08);
+                        border:1px solid rgba(255,183,3,.18);
+                        color:#ffd66b;
+                        font-size:12px;
+                    ">
+                        Previous open business day:
+                        {{ dashboard_previous_open_warning.business_date }}
+                    </div>
+                {% endif %}
+            {% elif dashboard_latest_business_day %}
+                <h2 style="margin:0;font-size:25px;">
+                    CLOSED — {{ dashboard_latest_business_day.business_date }}
+                </h2>
+
+                <p style="
+                    margin:8px 0 0;
+                    color:#8f8f9f;
+                    font-size:12px;
+                    line-height:1.6;
+                ">
+                    Closed
+                    {{ dashboard_latest_business_day.actual_closed_at|date:"Y-m-d H:i" }}
+                </p>
+            {% else %}
+                <h2 style="margin:0;font-size:25px;">
+                    No Business Day Yet
+                </h2>
+
+                <p style="
+                    margin:8px 0 0;
+                    color:#8f8f9f;
+                    font-size:12px;
+                ">
+                    Director control is ready.
+                </p>
+            {% endif %}
+        </div>
+
+        <div style="
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+        ">
+            {% if dashboard_open_business_day %}
+                <a
+                    href="{% url 'business_day:dashboard' %}"
+                    class="spotz-btn spotz-btn-primary"
+                >
+                    Manage Business Day
+                </a>
+
+                <a
+                    href="{% url 'business_day:deployment_add' %}"
+                    class="spotz-btn"
+                >
+                    Deploy Staff
+                </a>
+            {% elif dashboard_latest_business_day %}
+                <a
+                    href="{% url 'business_day:dashboard' %}"
+                    class="spotz-btn spotz-btn-primary"
+                >
+                    Manage Business Day
+                </a>
+            {% else %}
+                <a
+                    href="{% url 'business_day:open' %}"
+                    class="spotz-btn spotz-btn-primary"
+                >
+                    Open Business Day
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{% endblock %}

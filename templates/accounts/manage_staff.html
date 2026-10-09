@@ -1,0 +1,255 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Manage Staff | SPOTZ<section class="spotz-panel">
+    <div class="section-heading">
+        <div>
+            <span class="eyebrow">STAFF MANAGEMENT</span>
+            <h2>Staff Directory</h2>
+        </div>
+        <span class="staff-status staff-status-active">Director only</span>
+    </div>
+
+    <p>
+        View active staff, employment status, roles, and current staff records
+        from one controlled directory.
+    </p>
+
+    <a class="btn-primary" href="{% url 'staff_directory' %}">
+        Open Staff Directory →
+    </a>
+</section>
+{% endblock %}
+
+{% block content %}
+
+<section class="staff-page">
+
+    <div class="staff-hero">
+
+        <div class="staff-hero-orb staff-hero-orb-one"></div>
+        <div class="staff-hero-orb staff-hero-orb-two"></div>
+
+        <div class="staff-hero-content">
+
+            <div class="staff-kicker">
+                <span class="staff-kicker-dot"></span>
+                DIRECTOR CONTROL
+            </div>
+
+            <h1>Manage Staff</h1>
+
+            <p>
+                Control employee access, database-backed roles, permissions,
+                and staff onboarding from one secure command center.
+            </p>
+
+        </div>
+
+        <div class="staff-admin-badge">
+
+            <div class="staff-admin-icon">âœ“</div>
+
+            <div>
+                <strong>Administrator Access</strong>
+                <span>Director authorization verified</span>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="staff-section-heading">
+        <div>
+            <span>STAFF ADMINISTRATION</span>
+            <h2>Access &amp; Roles</h2>
+        </div>
+
+        <div class="staff-section-line"></div>
+    </div>
+
+
+    <section class="staff-cards">
+
+
+        <article class="staff-card staff-card-access">
+
+            <div class="staff-card-glow"></div>
+
+            <div class="staff-card-header">
+
+                <div class="staff-icon staff-icon-pink">
+                    â™™
+                </div>
+
+                <div class="staff-card-label">
+                    <span>STAFF</span>
+                    <small>EMPLOYEE ACCESS</small>
+                </div>
+
+                <div class="staff-card-status">
+                    â— ACTIVE
+                </div>
+
+            </div>
+
+
+            <div class="staff-card-content">
+
+                <h2>Employee Access</h2>
+
+                <p>
+                    Invite employees, assign their active role,
+                    and establish controlled access to the SPOTZ system.
+                </p>
+
+                <div class="staff-features">
+
+                    <div>
+                        <span>âœ“</span>
+                        Active role required
+                    </div>
+
+                    <div>
+                        <span>âœ“</span>
+                        Director controlled
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="staff-card-footer">
+
+                <a href="{% url 'invite_staff' %}" class="staff-action staff-action-pink">
+                    <span>Invite Staff</span>
+                    <strong>â†’</strong>
+                </a>
+
+            </div>
+
+        </article>
+
+
+        <article class="staff-card staff-card-roles">
+
+            <div class="staff-card-glow"></div>
+
+            <div class="staff-card-header">
+
+                <div class="staff-icon staff-icon-purple">
+                    âš™
+                </div>
+
+                <div class="staff-card-label">
+                    <span>ROLES</span>
+                    <small>PERMISSION CONTROL</small>
+                </div>
+
+                <div class="staff-card-status staff-status-purple">
+                    â— CONTROLLED
+                </div>
+
+            </div>
+
+
+            <div class="staff-card-content">
+
+                <h2>Role Management</h2>
+
+                <p>
+                    Create database-backed roles such as Manager
+                    and explicitly control the permissions each role receives.
+                </p>
+
+                <div class="staff-features">
+
+                    <div>
+                        <span>âœ“</span>
+                        Custom roles
+                    </div>
+
+                    <div>
+                        <span>âœ“</span>
+                        Permission controlled
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="staff-card-footer">
+
+                <a href="{% url 'manage_roles' %}" class="staff-action staff-action-purple">
+                    <span>Manage Roles</span>
+                    <strong>â†’</strong>
+                </a>
+
+            </div>
+
+        </article>
+
+    </section>
+
+
+    <section class="staff-security">
+
+        <div class="staff-security-symbol">
+            â—ˆ
+        </div>
+
+        <div class="staff-security-content">
+
+            <span>SPOTZ ACCESS CONTROL</span>
+
+            <p>
+                Staff authorization is enforced server-side.
+                Role assignments and permissions remain under Director control.
+            </p>
+
+        </div>
+
+        <div class="staff-security-status">
+            <span></span>
+            SECURE
+        </div>
+
+    </section>
+
+</section>
+
+<section class="spotz-panel">
+    <div class="section-heading">
+        <div>
+            <span class="eyebrow">STAFF MANAGEMENT</span>
+            <h2>Staff Directory</h2>
+        </div>
+        <span class="staff-status staff-status-active">Director only</span>
+    </div>
+
+    <p>
+        View active staff, employment status, roles, and current staff records
+        from one controlled directory.
+    </p>
+
+    <a class="btn-primary" href="{% url 'staff_directory' %}">
+        Open Staff Directory →
+    </a>
+</section>
+{% endblock %}
+
+
+<div class="spotz-panel" style="margin-top:1rem;">
+  <div class="spotz-page-head" style="margin-bottom:0;">
+    <div>
+      <h3>Employee Management</h3>
+      <p class="spotz-muted">Lifecycle, deployment, warnings, leave, suspension and termination.</p>
+    </div>
+    <a class="spotz-btn spotz-btn-secondary" href="{% url 'employee_directory' %}">
+      Open Employee Management
+    </a>
+  </div>
+</div>
+

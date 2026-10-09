@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="spotz-page">
+    <div class="spotz-page-header">
+        <div>
+            <h1>Public Holidays</h1>
+            <p>Configurable dates used by Business-Day scheduling.</p>
+        </div>
+
+        <a href="{% url 'business_day:holiday_add' %}" class="spotz-btn spotz-btn-primary">
+            Add Holiday
+        </a>
+    </div>
+
+    <div class="spotz-panel">
+        {% if holidays %}
+            {% for holiday in holidays %}
+                <div class="spotz-list-row">
+                    <div>
+                        <strong>{{ holiday.date }}</strong>
+                        <div>{{ holiday.name }}</div>
+                    </div>
+                    <span>
+                        {% if holiday.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No public holidays configured.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

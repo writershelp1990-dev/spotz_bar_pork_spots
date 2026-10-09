@@ -1,0 +1,357 @@
+﻿{% extends "base.html" %}
+
+{% block title %}My Profile | SPOTZ{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+
+    <!-- HERO -->
+    <section class="profile-hero">
+
+        <div class="profile-hero-glow profile-glow-one"></div>
+        <div class="profile-hero-glow profile-glow-two"></div>
+
+        <div class="profile-hero-content">
+
+            <div class="profile-kicker">
+                <span class="profile-kicker-dot"></span>
+                SPOTZ ACCOUNT / PERSONAL PROFILE
+            </div>
+
+            <div class="profile-heading-row">
+
+                <div>
+                    <h1>
+                        My <span>Profile</span>
+                    </h1>
+
+                    <p>
+                        Manage your personal contact details and account security.
+                    </p>
+                </div>
+
+                <div class="profile-online-badge">
+                    <span></span>
+                    SYSTEM ONLINE
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- PROFILE CONTENT -->
+    <div class="profile-layout">
+
+        <!-- LEFT IDENTITY PANEL -->
+        <aside class="profile-sidebar">
+
+            <section class="profile-identity-card">
+
+                <div class="profile-identity-top">
+                    <span class="profile-identity-label">
+                        CURRENT USER
+                    </span>
+
+                    <span class="profile-active-pill">
+                        <span></span>
+                        ACTIVE
+                    </span>
+                </div>
+
+                <div class="profile-avatar">
+                    {% if user.first_name %}
+                        {{ user.first_name|first|upper }}
+                    {% else %}
+                        {{ user.username|first|upper }}
+                    {% endif %}
+                </div>
+
+                <h2>
+                    {% if user.get_full_name %}
+                        {{ user.get_full_name }}
+                    {% else %}
+                        {{ user.username }}
+                    {% endif %}
+                </h2>
+
+                <div class="profile-role-badge">
+                    <span>◆</span>
+                    {{ user.get_role_display }}
+                </div>
+
+                <div class="profile-identity-divider"></div>
+
+                <div class="profile-identity-email">
+                    <span class="profile-email-icon">✉</span>
+
+                    <div>
+                        <small>ACCOUNT EMAIL</small>
+                        <strong>{{ user.email }}</strong>
+                    </div>
+                </div>
+
+            </section>
+
+
+            <!-- SECURITY CARD -->
+            <section class="profile-security-card">
+
+                <div class="profile-security-icon">
+                    🔐
+                </div>
+
+                <div class="profile-security-content">
+
+                    <span class="profile-security-kicker">
+                        ACCOUNT SECURITY
+                    </span>
+
+                    <h3>Keep your account secure</h3>
+
+                    <p>
+                        Update your password regularly to protect access to SPOTZ.
+                    </p>
+
+                    <a href="{% url 'password_change' %}" class="profile-password-link">
+                        <span>Change my password</span>
+                        <b>→</b>
+                    </a>
+
+                </div>
+
+            </section>
+
+        </aside>
+
+
+        <!-- MAIN FORM -->
+        <main class="profile-main">
+
+            <section class="profile-form-card">
+
+                <div class="profile-form-header">
+
+                    <div class="profile-form-icon profile-icon-pink">
+                        ✦
+                    </div>
+
+                    <div>
+                        <span class="profile-form-kicker">
+                            PERSONAL INFORMATION
+                        </span>
+
+                        <h2>Contact Details</h2>
+
+                        <p>
+                            You can update your own contact details at any time.
+                        </p>
+                    </div>
+
+                </div>
+
+
+                <form method="post" class="profile-form">
+
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="profile-errors">
+                            {% for error in form.non_field_errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+
+                    <div class="profile-form-grid">
+
+                        <div class="profile-field">
+
+                            <label for="{{ form.phone.id_for_label }}">
+                                Phone
+                            </label>
+
+                            <div class="profile-input-wrap profile-input-pink">
+                                <span>☎</span>
+                                {{ form.phone }}
+                            </div>
+
+                            {% if form.phone.errors %}
+                                <div class="profile-field-errors">
+                                    {% for error in form.phone.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                        </div>
+
+
+                        <div class="profile-field">
+
+                            <label for="{{ form.whatsapp_number.id_for_label }}">
+                                Whatsapp number
+                            </label>
+
+                            <div class="profile-input-wrap profile-input-purple">
+                                <span>◉</span>
+                                {{ form.whatsapp_number }}
+                            </div>
+
+                            {% if form.whatsapp_number.errors %}
+                                <div class="profile-field-errors">
+                                    {% for error in form.whatsapp_number.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                        </div>
+
+
+                        <div class="profile-field profile-field-full">
+
+                            <label for="{{ form.mpesa_number.id_for_label }}">
+                                Mpesa number
+                            </label>
+
+                            <div class="profile-input-wrap profile-input-green">
+                                <span>₵</span>
+                                {{ form.mpesa_number }}
+                            </div>
+
+                            {% if form.mpesa_number.errors %}
+                                <div class="profile-field-errors">
+                                    {% for error in form.mpesa_number.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                        </div>
+
+
+                        <div class="profile-field">
+
+                            <label for="{{ form.first_name.id_for_label }}">
+                                First name
+                            </label>
+
+                            <div class="profile-input-wrap profile-input-cyan">
+                                <span>✦</span>
+                                {{ form.first_name }}
+                            </div>
+
+                            {% if form.first_name.errors %}
+                                <div class="profile-field-errors">
+                                    {% for error in form.first_name.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                        </div>
+
+
+                        <div class="profile-field">
+
+                            <label for="{{ form.last_name.id_for_label }}">
+                                Last name
+                            </label>
+
+                            <div class="profile-input-wrap profile-input-orange">
+                                <span>✦</span>
+                                {{ form.last_name }}
+                            </div>
+
+                            {% if form.last_name.errors %}
+                                <div class="profile-field-errors">
+                                    {% for error in form.last_name.errors %}
+                                        {{ error }}
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="profile-form-footer">
+
+                        <div class="profile-save-note">
+                            <span>✓</span>
+                            <div>
+                                <strong>Personal details</strong>
+                                <small>Only you can update these details.</small>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="profile-save-button">
+                            <span>✓</span>
+                            Save Profile
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </section>
+
+
+            <!-- ACCOUNT INFORMATION -->
+            <section class="profile-account-strip">
+
+                <div class="profile-account-icon">
+                    ◈
+                </div>
+
+                <div class="profile-account-copy">
+
+                    <span>SPOTZ CONTROL</span>
+
+                    <strong>
+                        Your role and permissions are controlled by management.
+                    </strong>
+
+                    <small>
+                        Contact the Director if your role, operating point or access needs
+                        to be changed.
+                    </small>
+
+                </div>
+
+                <div class="profile-account-status">
+                    <span></span>
+                    PROTECTED
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+
+    <!-- FOOTER SECURITY -->
+    <section class="profile-footer-security">
+
+        <div class="profile-footer-lock">
+            🔒
+        </div>
+
+        <div>
+            <strong>SPOTZ account security</strong>
+            <span>
+                Profile contact details can be updated by the account owner.
+                Role and authorization changes remain management-controlled.
+            </span>
+        </div>
+
+    </section>
+
+</div>
+{% endblock %}

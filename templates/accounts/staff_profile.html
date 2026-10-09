@@ -1,0 +1,173 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="staff-profile-page">
+
+    <div class="page-header">
+        <div>
+            <span class="eyebrow">DIRECTOR CONTROL / STAFF</span>
+            <h1>{{ staff_member.get_full_name|default:staff_member.email }}</h1>
+            <p>Employee profile and current employment information.</p>
+        </div>
+
+        <a class="btn-secondary" href="{% url 'staff_directory' %}">
+            ← Staff Directory
+        </a>
+    </div>
+
+    <section class="spotz-panel staff-profile-hero">
+        <div>
+            <span class="staff-profile-number">
+            </span>
+
+            <h2>{{ staff_member.get_full_name|default:staff_member.email }}</h2>
+
+            <div class="staff-profile-meta">
+                {% if staff_member.role_definition %}
+                    <span>{{ staff_member.role_definition.name }}</span>
+                {% else %}
+                    <span>{{ staff_member.get_role_display }}</span>
+                {% endif %}
+
+                <span>•</span>
+
+                <span class="staff-status staff-status-{{ staff_member.employment_status|lower }}">
+                    {{ staff_member.get_employment_status_display }}
+                </span>
+            </div>
+        </div>
+    </section>
+
+    <div class="staff-profile-grid">
+
+        <section class="spotz-panel">
+            <div class="section-heading">
+                <div>
+                    <span class="eyebrow">PERSONAL INFORMATION</span>
+                    <h2>Staff Details</h2>
+                </div>
+            </div>
+
+            <dl class="staff-detail-list">
+                <div>
+                    <dt>Full name</dt>
+                    <dd>{{ staff_member.get_full_name|default:"—" }}</dd>
+                </div>
+
+                <div>
+                    <dt>Email</dt>
+                    <dd>{{ staff_member.email|default:"—" }}</dd>
+                </div>
+
+                <div>
+                    <dt>Phone</dt>
+                    <dd>{{ staff_member.phone|default:"—" }}</dd>
+                </div>
+
+                <div>
+                    <dt>Date joined</dt>
+                    <dd>{{ staff_member.date_joined|date:"d M Y"|default:"—" }}</dd>
+                </div>
+
+                <div>
+                    <dt>Account status</dt>
+                    <dd>
+                        {% if staff_member.is_active %}
+                            Active account
+                        {% else %}
+                            Inactive account
+                        {% endif %}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>Staff access</dt>
+                    <dd>
+                        {% if staff_member.is_active_staff %}
+                            Staff access enabled
+                        {% else %}
+                            Staff access disabled
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="spotz-panel">
+            <div class="section-heading">
+                <div>
+                    <span class="eyebrow">CURRENT ASSIGNMENT</span>
+                    <h2>Role & Deployment</h2>
+                </div>
+            </div>
+
+            <dl class="staff-detail-list">
+                <div>
+                    <dt>Current role</dt>
+                    <dd>
+                        {% if staff_member.role_definition %}
+                            {{ staff_member.role_definition.name }}
+                        {% else %}
+                            {{ staff_member.get_role_display }}
+                        {% endif %}
+                    </dd>
+                </div>
+
+                <div>
+                    <dt>Deployment</dt>
+                    <dd>Not assigned yet</dd>
+                </div>
+
+                <div>
+                    <dt>Employment status</dt>
+                    <dd>{{ staff_member.get_employment_status_display }}</dd>
+                </div>
+            </dl>
+
+            <div class="staff-phase-note">
+                Deployment and transfer controls are reserved for <strong>03B</strong>.
+                This page intentionally does not create a second deployment system.
+            </div>
+        </section>
+
+    </div>
+
+    <section class="spotz-panel">
+        <div class="section-heading">
+            <div>
+                <span class="eyebrow">DIRECTOR ACTIONS</span>
+                <h2>Controlled Staff Management</h2>
+            </div>
+        </div>
+
+        <div class="staff-action-grid">
+            <a href="#" class="staff-action-card staff-action-disabled">
+                <strong>Change Role</strong>
+                <span>Planned for 03C</span>
+            </a>
+
+            <a href="#" class="staff-action-card staff-action-disabled">
+                <strong>Deploy / Transfer</strong>
+                <span>Planned for 03B</span>
+            </a>
+
+            <a href="#" class="staff-action-card staff-action-disabled">
+                <strong>Issue Warning</strong>
+                <span>Planned for 03D</span>
+            </a>
+
+            <a href="#" class="staff-action-card staff-action-disabled">
+                <strong>Suspend</strong>
+                <span>Planned for 03E</span>
+            </a>
+
+            <a href="#" class="staff-action-card staff-action-disabled">
+                <strong>Terminate</strong>
+                <span>Planned for 03F</span>
+            </a>
+        </div>
+    </section>
+
+</div>
+{% endblock %}
+

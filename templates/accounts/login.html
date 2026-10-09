@@ -1,0 +1,40 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="auth-shell">
+    <div class="auth-card">
+        <h1>SPOTZ Login</h1>
+        <p>Sign in to the SPOTZ Management System.</p>
+
+        <form method="post">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="form-error">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            {% for field in form %}
+                <div class="form-field">
+                    <label>{{ field.label }}</label>
+                    {{ field }}
+                    {% for error in field.errors %}
+                        <div class="form-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+
+            <button type="submit" class="btn-primary">Login</button>
+        <div class="spotz-forgot-password">
+    <a href="{% url 'password_reset' %}">
+        Forgot your password?
+    </a>
+</div>
+</form>
+
+        <p class="auth-note">
+            Use your registered email address and password.
+        </p>
+    </div>
+</div>
+{% endblock %}
+

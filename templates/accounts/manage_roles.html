@@ -1,0 +1,279 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Role Management | SPOTZ{% endblock %}
+
+{% block content %}
+
+<section class="roles-page">
+
+    <div class="roles-hero">
+
+        <div class="roles-hero-orb roles-hero-orb-one"></div>
+        <div class="roles-hero-orb roles-hero-orb-two"></div>
+
+        <div class="roles-hero-content">
+
+            <div class="roles-kicker">
+                <span class="roles-kicker-dot"></span>
+                DIRECTOR CONTROL
+            </div>
+
+            <h1>Role Management</h1>
+
+            <p>
+                Build and control database-backed staff roles,
+                permissions, and system access from one secure command center.
+            </p>
+
+        </div>
+
+        <div class="roles-hero-actions">
+
+            <a href="{% url 'create_role' %}" class="roles-primary-action">
+                <span class="roles-action-icon">＋</span>
+                <span>
+                    <strong>Create Role</strong>
+                    <small>Add a custom access profile</small>
+                </span>
+                <b>→</b>
+            </a>
+
+            <a href="{% url 'manage_staff' %}" class="roles-secondary-action">
+                <span>Manage Staff</span>
+                <b>→</b>
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <div class="roles-section-heading">
+
+        <div>
+            <span>ACCESS CONTROL</span>
+            <h2>Staff Role Directory</h2>
+        </div>
+
+        <div class="roles-section-meta">
+            <span class="roles-live-dot"></span>
+            DIRECTOR ONLY
+        </div>
+
+    </div>
+
+
+    <section class="roles-grid">
+
+        {% for role in roles %}
+
+        <article class="role-card
+            {% if role.is_system_role %}role-card-system{% else %}role-card-custom{% endif %}
+            {% if role.code == 'DIRECTOR' %}role-card-director{% endif %}
+            {% if not role.is_active %}role-card-inactive{% endif %}">
+
+            <div class="role-card-glow"></div>
+
+            <div class="role-card-top">
+
+                <div class="role-symbol
+                    {% if role.code == 'DIRECTOR' %}
+                        role-symbol-gold
+                    {% elif role.is_system_role %}
+                        role-symbol-pink
+                    {% else %}
+                        role-symbol-purple
+                    {% endif %}">
+                    {% if role.code == 'DIRECTOR' %}
+                        ◆
+                    {% elif role.is_system_role %}
+                        ◈
+                    {% else %}
+                        ✦
+                    {% endif %}
+                </div>
+
+                <div class="role-type">
+
+                    <span>
+                        {% if role.is_system_role %}
+                            SYSTEM ROLE
+                        {% else %}
+                            CUSTOM ROLE
+                        {% endif %}
+                    </span>
+
+                    <small>{{ role.code }}</small>
+
+                </div>
+
+                <div class="role-status
+                    {% if role.is_active %}
+                        role-status-active
+                    {% else %}
+                        role-status-inactive
+                    {% endif %}">
+
+                    <i></i>
+
+                    {% if role.is_active %}
+                        ACTIVE
+                    {% else %}
+                        INACTIVE
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+
+            <div class="role-card-body">
+
+                <h3>{{ role.name }}</h3>
+
+                {% if role.description %}
+                    <p>{{ role.description }}</p>
+                {% else %}
+                    <p class="role-empty-description">
+                        No description provided.
+                    </p>
+                {% endif %}
+
+            </div>
+
+
+            <div class="role-permissions">
+
+                <div class="role-permissions-heading">
+                    <span>PERMISSIONS</span>
+                    <span class="role-permission-count">
+                        {% with permissions=role.role_permissions.all %}
+                            {{ permissions|length }}
+                        {% endwith %}
+                    </span>
+                </div>
+
+                <div class="role-permission-list">
+
+                    {% with permissions=role.role_permissions.all %}
+
+                        {% if permissions %}
+
+                            {% for rp in permissions %}
+
+                                <span class="role-permission-chip">
+                                    <i>✓</i>
+                                    {{ rp.permission.name }}
+                                </span>
+
+                            {% endfor %}
+
+                        {% else %}
+
+                            <span class="role-no-permissions">
+                                No permissions assigned
+                            </span>
+
+                        {% endif %}
+
+                    {% endwith %}
+
+                </div>
+
+            </div>
+
+
+            <div class="role-card-footer">
+
+                <a href="{% url 'edit_role' role.id %}"
+                   class="role-edit-action">
+
+                    <span>✎</span>
+                    Edit Role
+
+                </a>
+
+                <form method="post"
+                      action="{% url 'toggle_role' role.id %}">
+
+                    {% csrf_token %}
+
+                    <button type="submit"
+                            class="role-toggle-action
+                            {% if role.is_active %}
+                                role-toggle-deactivate
+                            {% else %}
+                                role-toggle-activate
+                            {% endif %}">
+
+                        {% if role.is_active %}
+                            <span>◉</span>
+                            Deactivate
+                        {% else %}
+                            <span>●</span>
+                            Activate
+                        {% endif %}
+
+                    </button>
+
+                </form>
+
+            </div>
+
+        </article>
+
+        {% empty %}
+
+        <article class="role-empty-state">
+
+            <div class="role-empty-icon">✦</div>
+
+            <h3>No roles found</h3>
+
+            <p>
+                Create the first custom staff role to begin configuring access.
+            </p>
+
+            <a href="{% url 'create_role' %}" class="roles-primary-action">
+                <span class="roles-action-icon">＋</span>
+                <span>
+                    <strong>Create Role</strong>
+                    <small>Build a new access profile</small>
+                </span>
+                <b>→</b>
+            </a>
+
+        </article>
+
+        {% endfor %}
+
+    </section>
+
+
+    <section class="roles-security">
+
+        <div class="roles-security-symbol">
+            ◈
+        </div>
+
+        <div class="roles-security-content">
+
+            <span>SPOTZ AUTHORIZATION CONTROL</span>
+
+            <p>
+                Role permissions are enforced server-side.
+                System roles remain protected while custom roles can be managed by the Director.
+            </p>
+
+        </div>
+
+        <div class="roles-security-status">
+            <span></span>
+            SECURE
+        </div>
+
+    </section>
+
+</section>
+
+{% endblock %}

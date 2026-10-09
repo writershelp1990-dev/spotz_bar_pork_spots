@@ -1,0 +1,85 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+<h1>Point of Sale</h1>
+{% if not products_json or products_json == "[]" %}
+<p>No products have an effective selling price yet. Add categories, units, products, and selling prices before checkout.</p>
+{% endif %}
+<form method="post" id="checkout-form">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  <p>{{ form.operating_point.label_tag }} {{ form.operating_point }}</p>
+  <h2>Items</h2>
+  <div style="overflow-x:auto">
+  <table id="cart"><thead><tr><th>Product</th><th>Quantity</th><th>Unit price</th><th>Line total</th><th></th></tr></thead><tbody></tbody></table>
+  </div>
+  <p><button type="button" id="add-row">Add item</button></p>
+  <p>Subtotal: KES <strong id="subtotal">0.00</strong></p>
+  {{ form.items_json }}
+  <p>{{ form.payment_method.label_tag }} {{ form.payment_method }}</p>
+  <p>{{ form.amount_tendered.label_tag }} {{ form.amount_tendered }}</p>
+  <button type="submit">Complete sale</button>
+</form>
+<script>
+(function () {
+  const products = {{ products_json|safe }};
+  const tbody = document.querySelector("#cart tbody");
+  const hidden = document.getElementById("id_items_json");
+  const subtotal = document.getElementById("subtotal");
+  function refresh() {
+    let total = 0, items = [];
+    tbody.querySelectorAll("tr").forEach(row => {
+      const select = row.querySelector("select");
+      const qtyInput = row.querySelector("input");
+      const p = products.find(x => String(x.id) === select.value);
+      const qty = Number(qtyInput.value || 0);
+      const price = p ? Number(p.price) : 0;
+      const line = qty > 0 ? qty * price : 0;
+      row.querySelector(".price").textContent = price.toFixed(2);
+      row.querySelector(".line").textContent = line.toFixed(2);
+      total += line;
+      if (p && qty > 0) items.push({product_id: p.id, quantity: qty});
+    });
+    subtotal.textContent = total.toFixed(2);
+    hidden.value = JSON.stringify(items);
+  }
+  function addRow() {
+    const row = document.createElement("tr");
+    const productCell = document.createElement("td");
+    const select = document.createElement("select");
+    select.required = true;
+    select.innerHTML = '<option value="">Select product</option>';
+    products.forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = p.name + " (" + p.unit + ")";
+      select.appendChild(opt);
+    });
+    productCell.appendChild(select);
+    const quantityCell = document.createElement("td");
+    const qty = document.createElement("input");
+    qty.type = "number"; qty.min = "0.001"; qty.step = "0.001";
+    qty.value = "1"; qty.required = true; qty.style.width = "100px";
+    quantityCell.appendChild(qty);
+    const priceCell = document.createElement("td"); priceCell.className = "price"; priceCell.textContent = "0.00";
+    const lineCell = document.createElement("td"); lineCell.className = "line"; lineCell.textContent = "0.00";
+    const removeCell = document.createElement("td");
+    const remove = document.createElement("button"); remove.type = "button"; remove.textContent = "Remove";
+    remove.addEventListener("click", () => { row.remove(); refresh(); });
+    removeCell.appendChild(remove);
+    row.append(productCell, quantityCell, priceCell, lineCell, removeCell);
+    tbody.appendChild(row);
+    select.addEventListener("change", refresh);
+    qty.addEventListener("input", refresh);
+    refresh();
+  }
+  document.getElementById("add-row").addEventListener("click", addRow);
+  document.getElementById("checkout-form").addEventListener("submit", function (e) {
+    refresh();
+    if (!hidden.value || JSON.parse(hidden.value).length === 0) {
+      e.preventDefault(); alert("Add at least one valid product.");
+    }
+  });
+  if (products.length) addRow();
+})();
+</script>
+{% endblock %}

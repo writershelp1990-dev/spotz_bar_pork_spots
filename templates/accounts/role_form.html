@@ -1,0 +1,292 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | SPOTZ{% endblock %}
+
+{% block content %}
+
+<section class="role-editor-page">
+
+    <div class="role-editor-hero">
+
+        <div class="role-editor-orb role-editor-orb-one"></div>
+        <div class="role-editor-orb role-editor-orb-two"></div>
+
+        <div class="role-editor-hero-content">
+
+            <div class="role-editor-kicker">
+                <span class="role-editor-kicker-dot"></span>
+                {% if page_title == "Edit Role" %}
+                    ROLE CONFIGURATION
+                {% else %}
+                    ROLE CREATION
+                {% endif %}
+            </div>
+
+            <h1>{{ page_title }}</h1>
+
+            <p>
+                Configure staff access with explicit permissions.
+                Every selected permission is intentionally assigned.
+            </p>
+
+        </div>
+
+        <div class="role-editor-security">
+
+            <div class="role-editor-security-icon">
+                {% if page_title == "Edit Role" %}
+                    ✎
+                {% else %}
+                    ✦
+                {% endif %}
+            </div>
+
+            <div>
+                <strong>Director Control</strong>
+                <span>Authorization verified</span>
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="role-editor-toolbar">
+
+        <div class="role-editor-breadcrumb">
+            <span>MANAGEMENT</span>
+            <b>/</b>
+            <span>ROLES</span>
+            <b>/</b>
+            <strong>{{ page_title|upper }}</strong>
+        </div>
+
+        <a href="{% url 'manage_roles' %}" class="role-editor-back">
+            <span>←</span>
+            Back to Roles
+        </a>
+
+    </div>
+
+
+    <section class="role-editor-layout">
+
+        <div class="role-editor-main">
+
+            <form method="post" class="role-editor-form">
+
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                    <div class="role-editor-errors">
+                        {% for error in form.non_field_errors %}
+                            <div>{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+
+                {% for field in form %}
+
+                    <div class="role-editor-field
+                        {% if field.name == 'permissions' %}role-editor-permissions-field{% endif %}
+                        {% if field.name == 'is_active' %}role-editor-active-field{% endif %}">
+
+                        <div class="role-editor-field-heading">
+
+                            <label for="{{ field.id_for_label }}">
+                                {{ field.label }}
+                            </label>
+
+                            {% if field.name == "permissions" %}
+                                <span class="role-editor-field-badge">
+                                    ACCESS CONTROL
+                                </span>
+                            {% elif field.name == "is_active" %}
+                                <span class="role-editor-field-badge role-editor-field-badge-green">
+                                    STATUS
+                                </span>
+                            {% endif %}
+
+                        </div>
+
+
+                        {% if field.name == "permissions" %}
+
+                            <div class="role-editor-permissions-box">
+
+                                <div class="role-editor-permissions-intro">
+
+                                    <div class="role-editor-permission-icon">
+                                        ◈
+                                    </div>
+
+                                    <div>
+                                        <strong>Explicit Permissions</strong>
+                                        <p>
+                                            Select only the capabilities this role should receive.
+                                            Nothing is inherited automatically.
+                                        </p>
+                                    </div>
+
+                                </div>
+
+                                <div class="role-editor-permission-options">
+                                    {{ field }}
+                                </div>
+
+                            </div>
+
+                        {% elif field.name == "is_active" %}
+
+                            <div class="role-editor-active-box">
+
+                                <div class="role-editor-active-indicator">
+                                    <span></span>
+                                </div>
+
+                                <div class="role-editor-active-copy">
+                                    <strong>Role availability</strong>
+
+                                    {% if field.help_text %}
+                                        <small>{{ field.help_text }}</small>
+                                    {% else %}
+                                        <small>
+                                            Active roles can be assigned to staff members.
+                                        </small>
+                                    {% endif %}
+                                </div>
+
+                                <div class="role-editor-active-control">
+                                    {{ field }}
+                                </div>
+
+                            </div>
+
+                        {% else %}
+
+                            {{ field }}
+
+                            {% if field.help_text %}
+                                <small class="role-editor-help">
+                                    {{ field.help_text }}
+                                </small>
+                            {% endif %}
+
+                        {% endif %}
+
+
+                        {% for error in field.errors %}
+                            <div class="role-editor-error">
+                                {{ error }}
+                            </div>
+                        {% endfor %}
+
+                    </div>
+
+                {% endfor %}
+
+
+                <div class="role-editor-actions">
+
+                    <button type="submit" class="role-editor-save">
+                        <span>✓</span>
+                        {{ submit_label }}
+                        <b>→</b>
+                    </button>
+
+                    <a href="{% url 'manage_roles' %}" class="role-editor-cancel">
+                        Cancel
+                    </a>
+
+                </div>
+
+            </form>
+
+        </div>
+
+
+        <aside class="role-editor-side">
+
+            <div class="role-editor-side-card">
+
+                <div class="role-editor-side-icon">
+                    ◇
+                </div>
+
+                <span>ROLE ACCESS MODEL</span>
+
+                <h2>Explicit by design.</h2>
+
+                <p>
+                    SPOTZ permissions are assigned deliberately.
+                    A role receives only the capabilities selected by the Director.
+                </p>
+
+                <div class="role-editor-rule-list">
+
+                    <div>
+                        <i>01</i>
+                        <span>Role identity</span>
+                    </div>
+
+                    <div>
+                        <i>02</i>
+                        <span>Permission selection</span>
+                    </div>
+
+                    <div>
+                        <i>03</i>
+                        <span>Active status</span>
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="role-editor-note">
+
+                <div class="role-editor-note-icon">
+                    !
+                </div>
+
+                <div>
+                    <strong>Director responsibility</strong>
+                    <p>
+                        Role changes directly affect staff authorization.
+                        Review permissions before saving.
+                    </p>
+                </div>
+
+            </div>
+
+        </aside>
+
+    </section>
+
+
+    <section class="role-editor-footer-security">
+
+        <div class="role-editor-footer-symbol">
+            ◈
+        </div>
+
+        <div>
+            <span>SPOTZ AUTHORIZATION CONTROL</span>
+            <p>
+                Role configuration is restricted to Director-authorized staff.
+                Changes are applied through the secured server-side workflow.
+            </p>
+        </div>
+
+        <strong>
+            <i></i>
+            SECURE
+        </strong>
+
+    </section>
+
+</section>
+
+{% endblock %}
