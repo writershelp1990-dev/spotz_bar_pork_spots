@@ -100,7 +100,10 @@ class CheckoutServiceTests(TestCase):
     def test_successful_checkout_snapshots_total_and_deducts_stock(self):
         sale = self.checkout_one()
 
-        self.assertTrue(sale.completed)
+        # checkout() no longer completes the sale - completion is
+        # the caller's responsibility (pos view for cash/manual,
+        # apply_callback for STK push).
+        self.assertFalse(sale.completed)
         self.assertEqual(sale.subtotal, Decimal("200.00"))
         self.assertEqual(sale.total, Decimal("200.00"))
         self.assertEqual(sale.change_due, Decimal("50.00"))
@@ -152,6 +155,11 @@ class CheckoutServiceTests(TestCase):
 
     def test_completed_sale_cannot_be_edited_or_deleted(self):
         sale = self.checkout_one()
+
+        # checkout() no longer completes the sale - do it here
+        # the way the pos view would, then test immutability.
+        sale.completed = True
+        sale.save(update_fields=['completed'])
 
         sale.notes = "Attempted alteration"
         with self.assertRaises(ValidationError):

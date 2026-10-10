@@ -211,8 +211,11 @@ def checkout(*, user, operating_point, payment_method, amount_tendered, items_js
                          "balance_after": str(balance.quantity)}
             )
 
-    sale.completed = True
-    sale.save(update_fields=["completed"])
+    # NOTE: The sale is intentionally NOT marked completed here.
+    # Each payment path completes the sale at the right moment:
+    #   - Cash: completed immediately in the pos view
+    #   - Manual M-Pesa: completed immediately in the pos view
+    #   - STK-push M-Pesa: completed by the callback when payment succeeds
     record_audit(
         user=user, action="CREATE", obj=sale,
         operating_point=operating_point, reason="POS checkout completed",

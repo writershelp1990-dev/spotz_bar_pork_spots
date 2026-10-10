@@ -256,8 +256,10 @@ def apply_callback(*, mpesa_transaction, parsed: dict):
     sale = mpesa_transaction.sale
     if mpesa_transaction.status == MpesaTransaction.Status.SUCCESS:
         sale.payment_status = Sale.PaymentStatus.PAID
+        sale.completed = True
+        sale.save(update_fields=["completed", "payment_status"])
     else:
         sale.payment_status = Sale.PaymentStatus.FAILED
-    sale.save(update_fields=["payment_status"])
+        sale.save(update_fields=["payment_status"])
 
     return mpesa_transaction
