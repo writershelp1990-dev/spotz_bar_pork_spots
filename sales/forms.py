@@ -134,8 +134,41 @@ class ReceiptForm(forms.Form):
 class CheckoutForm(forms.Form):
     operating_point = forms.ModelChoiceField(queryset=OperatingPoint.objects.none())
     payment_method = forms.ChoiceField(choices=Sale.PaymentMethod.choices)
-    amount_tendered = forms.DecimalField(min_value=0, max_digits=14, decimal_places=2)
+    amount_tendered = forms.DecimalField(
+        min_value=0, max_digits=14, decimal_places=2, required=False,
+    )
     items_json = forms.CharField(widget=forms.HiddenInput())
+
+    # --- Manual M-Pesa (customer already paid the till) ---
+    mpesa_receipt_code = forms.CharField(
+        max_length=40, required=False,
+    )
+    mpesa_amount_paid = forms.DecimalField(
+        min_value=0, max_digits=12, decimal_places=2, required=False,
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        method = cleaned.get("payment_method")
+
+        if method == "MPESA_MANUAL":
+            code = (cleaned.get("mpesa_receipt_code") or "").strip().upper()
+            amount = cleaned.get("mpesa_amount_paid")
+
+            if not code:
+                self.add_error("mpesa_receipt_code",
+                               "M-Pesa receipt code is required.")
+            elif not (8 <= len(code) <= 12):
+                self.add_error("mpesa_receipt_code",
+                               "Receipt codes are typically 8-12 characters.")
+            else:
+                cleaned["mpesa_receipt_code"] = code
+
+            if amount is None:
+                self.add_error("mpesa_amount_paid",
+                               "Amount paid is required for manual M-Pesa.")
+
+        return cleaned
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

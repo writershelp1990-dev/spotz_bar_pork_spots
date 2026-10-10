@@ -416,3 +416,145 @@ class ProductEditAuditRegressionTests(TestCase):
             "effective_from must be timezone-aware after cleaning",
         )
 
+
+class MpesaManualPaymentTests(TestCase):
+    """Regression tests for the customer-paid (manual) M-Pesa flow."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from accounts.models import OperatingPoint
+        from business.models import BusinessDay
+        from catalog.models import (
+            Category, UnitOfMeasure, Product, ProductPriceHistory,
+        )
+        from sales.models import StockBalance
+
+        User = get_user_model()
+        user_fields = {f.name for f in User._meta.get_fields()}
+        kwargs = {
+            "password": "test-pass-123",
+            "role": "DIRECTOR",
+            "is_active": True,
+            "is_active_staff": True,
+        }
+        if "username" in user_fields:
+            kwargs["username"] = "manual_mpesa_director"
+        elif "national_id" in user_fields:
+            kwargs["national_id"] = "MANUAL-MPESA-001"
+        self.user = User.objects.create_user(**kwargs)
+
+        self.point = OperatingPoint.objects.create(
+            code="BAR-MANUAL", name="Bar Manual", is_active=True,
+        )
+
+        self.category = Category.objects.create(
+            name="Manual M-Pesa Category", is_active=True,
+        )
+        self.unit = UnitOfMeasure.objects.create(
+            name="Manual Unit", abbreviation="mun",
+            unit_type="VOLUME", is_active=True,
+        )
+        self.product = Product.objects.create(
+            name="Manual M-Pesa Product",
+            brand="ManualBrand", variety="ManualVariety",
+            packaging="Bottle", size_value=Decimal("500"),
+            size_unit=self.unit, code="MANUAL-MPESA-TEST",
+            category=self.category, product_type="NON_ALCOHOLIC",
+            purchase_unit=self.unit, selling_unit=self.unit,
+            purchase_to_sale_ratio=Decimal("1"),
+            is_active=True, track_inventory=True,
+        )
+
+        ProductPriceHistory.objects.create(
+            product=self.product,
+            price_type="SELLING",
+            unit=self.unit,
+            price=Decimal("100.00"),
+            effective_from=timezone.now() - timezone.timedelta(minutes=1),
+        )
+
+        # Ensure an open business day for today
+        today = timezone.localdate()
+        BusinessDay.objects.filter(
+            business_date=today, status="OPEN"
+        ).delete()
+        BusinessDay.objects.create(
+            business_date=today,
+            status="OPEN",
+            opened_by=self.user,
+            actual_opened_at=timezone.now(),
+        )
+
+        # Give the product enough stock at the test point
+        StockBalance.objects.create(
+            product=self.product,
+            operating_point=self.point,
+            quantity=Decimal("100.000"),
+        )
+
+        self.client.force_login(self.user)
+
+    def _post(self, **overrides):
+        import json
+        from django.urls import reverse
+        data = {
+            "operating_point": str(self.point.pk),
+            "payment_method": "MPESA_MANUAL",
+            "amount_tendered": "",
+            "items_json": json.dumps([
+                {"product_id": self.product.pk, "quantity": 1}
+            ]),
+            "mpesa_receipt_code": "SLK7X2M9AB",
+            "mpesa_amount_paid": "100.00",
+            "phone_number": "",
+        }
+        data.update(overrides)
+        return self.client.post(reverse("sales:pos"), data)
+
+    def test_manual_mpesa_creates_payment_record(self):
+        from sales.models import MpesaManualPayment
+        response = self._post()
+        self.assertEqual(response.status_code, 302, response.content[:500])
+        record = MpesaManualPayment.objects.get(receipt_code="SLK7X2M9AB")
+        self.assertEqual(record.amount_paid, 100)
+        self.assertEqual(record.recorded_by, self.user)
+
+    def test_manual_mpesa_marks_sale_paid(self):
+        from sales.models import Sale
+        response = self._post()
+        self.assertEqual(response.status_code, 302)
+        sale = Sale.objects.latest("id")
+        self.assertTrue(sale.completed)
+        self.assertEqual(sale.payment_status, "PAID")
+        self.assertEqual(sale.payment_method, "MPESA_MANUAL")
+
+    def test_duplicate_receipt_code_rejected(self):
+        from sales.models import MpesaManualPayment
+        self._post()
+        self.assertEqual(MpesaManualPayment.objects.count(), 1)
+        response = self._post()
+        self.assertEqual(
+            MpesaManualPayment.objects.filter(receipt_code="SLK7X2M9AB").count(),
+            1,
+            "Duplicate receipt code must not create a second payment record.",
+        )
+
+    def test_receipt_code_uppercased(self):
+        from sales.models import MpesaManualPayment
+        self._post(mpesa_receipt_code="slk7x2m9ab")
+        self.assertTrue(
+            MpesaManualPayment.objects.filter(receipt_code="SLK7X2M9AB").exists(),
+            "Receipt code should be normalised to upper case.",
+        )
+
+    def test_missing_receipt_code_rejected(self):
+        from sales.models import MpesaManualPayment
+        self._post(mpesa_receipt_code="")
+        self.assertEqual(MpesaManualPayment.objects.count(), 0)
+
+    def test_amount_paid_less_than_total_rejected(self):
+        from sales.models import MpesaManualPayment
+        self._post(mpesa_amount_paid="50.00")
+        self.assertEqual(MpesaManualPayment.objects.count(), 0)
+

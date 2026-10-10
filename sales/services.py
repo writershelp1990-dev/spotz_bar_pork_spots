@@ -144,12 +144,20 @@ def checkout(*, user, operating_point, payment_method, amount_tendered, items_js
         subtotal += line_total
 
     subtotal = subtotal.quantize(CENT)
-    try:
-        tendered = Decimal(str(amount_tendered)).quantize(CENT)
-    except (InvalidOperation, TypeError):
-        raise ValidationError("Enter a valid amount tendered.")
-    if tendered < subtotal:
-        raise ValidationError("Amount tendered cannot be less than the sale total.")
+    # Manual M-Pesa (and STK-push M-Pesa) do not need an amount tendered;
+    # the customer pays exactly the total.
+    if amount_tendered is None and payment_method in (
+        Sale.PaymentMethod.MPESA,
+        Sale.PaymentMethod.MPESA_MANUAL,
+    ):
+        tendered = subtotal
+    else:
+        try:
+            tendered = Decimal(str(amount_tendered)).quantize(CENT)
+        except (InvalidOperation, TypeError):
+            raise ValidationError("Enter a valid amount tendered.")
+        if tendered < subtotal:
+            raise ValidationError("Amount tendered cannot be less than the sale total.")
     if payment_method not in Sale.PaymentMethod.values:
         raise ValidationError("Select a valid payment method.")
 

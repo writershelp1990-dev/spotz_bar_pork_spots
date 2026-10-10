@@ -7,7 +7,8 @@ from django.db.models import Q
 class Sale(models.Model):
     class PaymentMethod(models.TextChoices):
         CASH = "CASH", "Cash"
-        MPESA = "MPESA", "M-Pesa"
+        MPESA = "MPESA", "M-Pesa (STK Push)"
+        MPESA_MANUAL = "MPESA_MANUAL", "M-Pesa (Customer-Paid)"
         CARD = "CARD", "Card"
         OTHER = "OTHER", "Other"
 
@@ -64,24 +65,26 @@ class Sale(models.Model):
     def __str__(self):
         return self.sale_number
 
-    # allow sale completion transitions
+    # require explicit update_fields on existing sales
     def save(self, *args, **kwargs):
         if self.pk:
-            update_fields = set(kwargs.get("update_fields") or ())
+            update_fields = kwargs.get("update_fields")
 
-            # Legal one-time transitions on an existing sale:
-            #   - Mark as completed (POS cash flow)
-            #   - Set payment_status to PAID/FAILED (M-Pesa callback)
-            #   - Attach a customer_phone during M-Pesa initiation
-            allowed = (
-                {"completed"}
-                | {"payment_status"}
-                | {"customer_phone"}
-                | {"completed", "payment_status"}
-                | {"customer_phone", "payment_status"}
-            )
+            # Any save on an existing sale MUST specify update_fields.
+            # Without this, arbitrary edits would bypass the guard.
+            if update_fields is None:
+                raise ValidationError(
+                    "Existing sale records cannot be edited without " 
+                    "explicit update_fields."
+                )
 
-            if update_fields and not update_fields.issubset(allowed):
+            allowed = {
+                "completed",
+                "payment_status",
+                "customer_phone",
+            }
+
+            if not set(update_fields).issubset(allowed):
                 raise ValidationError(
                     "Existing sale records cannot be edited."
                 )
@@ -234,3 +237,41 @@ class MpesaTransaction(models.Model):
 
     def __str__(self):
         return f"M-Pesa {self.phone_number} for {self.sale_id} [{self.status}]"
+
+# ===========================================================================
+# M-PESA — Manual (Customer-Paid)
+# ===========================================================================
+class MpesaManualPayment(models.Model):
+    """
+    A payment a customer made directly to the till (Paybill / Buy Goods).
+
+    The cashier records the M-Pesa receipt code from the customer SMS and
+    the amount they paid. A UNIQUE constraint on receipt_code prevents
+    the same M-Pesa transaction from being recorded twice.
+    """
+
+    sale = models.ForeignKey(
+        Sale,
+        on_delete=models.PROTECT,
+        related_name="mpesa_manual_payments",
+    )
+    receipt_code = models.CharField(
+        max_length=40,
+        unique=True,
+        help_text="M-Pesa code from the customer SMS, e.g. SLK7X2M9AB.",
+    )
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2)
+    customer_phone = models.CharField(max_length=20, blank=True)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="recorded_manual_mpesa",
+    )
+    recorded_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-recorded_at"]
+
+    def __str__(self):
+        return f"{self.receipt_code} — KES {self.amount_paid} (sale {self.sale_id})"

@@ -65,6 +65,39 @@ def pos(request):
             )
 
             # M-Pesa: redirect to the STK-push screen instead of completing
+            # ---- Manual M-Pesa (customer already paid the till) ----
+            if sale.payment_method == Sale.PaymentMethod.MPESA_MANUAL:
+                from .models import MpesaManualPayment
+
+                code = (form.cleaned_data.get("mpesa_receipt_code") or "").strip().upper()
+                amount = form.cleaned_data.get("mpesa_amount_paid")
+
+                if MpesaManualPayment.objects.filter(receipt_code=code).exists():
+                    raise ValidationError(
+                        f"M-Pesa receipt {code} has already been recorded."
+                    )
+                if amount is None or amount < sale.total:
+                    raise ValidationError(
+                        f"Amount paid (KES {amount}) is less than the sale total (KES {sale.total})."
+                    )
+
+                MpesaManualPayment.objects.create(
+                    sale=sale,
+                    receipt_code=code,
+                    amount_paid=amount,
+                    customer_phone=(request.POST.get("phone_number") or "").strip(),
+                    recorded_by=request.user,
+                )
+
+                sale.completed = True
+                sale.payment_status = Sale.PaymentStatus.PAID
+                sale.save(update_fields=["completed", "payment_status"])
+                messages.success(
+                    request,
+                    f"Sale {sale.sale_number} recorded via manual M-Pesa. Receipt: {code}.",
+                )
+                return redirect("sales:receipt", sale_id=sale.pk)
+
             if sale.payment_method == Sale.PaymentMethod.MPESA:
                 sale.customer_phone = (request.POST.get("phone_number") or "").strip()
                 sale.save(update_fields=["customer_phone"])
