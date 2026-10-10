@@ -3,6 +3,25 @@
 <h1>Receipt {{ sale.sale_number }}</h1>
 <p>Date: {{ sale.sold_at }} | Point: {{ sale.operating_point.name }}</p>
 <p>Cashier: {{ sale.cashier }} | Payment: {{ sale.get_payment_method_display }}</p>
+{% if sale.payment_method == "MPESA" %}
+  <p>
+    <strong>M-Pesa:</strong>
+    {% if sale.payment_status == "PAID" %}
+      <span style="color:#059669;">PAID</span>
+    {% elif sale.payment_status == "PENDING" %}
+      <span style="color:#d97706;">PENDING</span>
+    {% else %}
+      <span style="color:#b91c1c;">{{ sale.get_payment_status_display }}</span>
+    {% endif %}
+    {% with latest=sale.mpesa_transactions.first %}
+      {% if latest and latest.mpesa_receipt_number %}
+        &nbsp;|&nbsp; Receipt: <strong>{{ latest.mpesa_receipt_number }}</strong>
+      {% endif %}
+    {% endwith %}
+    &nbsp;|&nbsp; Phone: {{ sale.customer_phone }}
+  </p>
+{% endif %}
+
 <table>
 <thead><tr><th>Product</th><th>Quantity</th><th>Unit price (KES)</th><th>Line total (KES)</th></tr></thead>
 <tbody>{% for i in sale.items.all %}

@@ -1,0 +1,104 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+<h1>Waiting for M-Pesa payment...</h1>
+
+<p>
+  Sale: <strong>{{ sale.sale_number }}</strong> &nbsp;|&nbsp;
+  Total: <strong>KES {{ sale.total }}</strong>
+</p>
+<p>
+  Phone: <strong>{{ mpesa.phone_number }}</strong>
+</p>
+
+<div id="status-box"
+     style="padding:1.5rem; border:1px solid #e5e7eb; border-radius:0.75rem;
+            background:#fafafa; margin-top:1.5rem; max-width:520px;">
+
+  <p style="margin:0; font-size:1.1rem;">
+    Status:
+    <strong id="status-text" style="color:#d97706;">
+      {{ mpesa.get_status_display|default:"Pending" }}
+    </strong>
+  </p>
+
+  <p id="instructions" style="margin:1rem 0 0 0; color:#666; font-size:0.9rem;">
+    An STK prompt has been sent to the customer's phone.
+    Ask them to enter their M-Pesa PIN to complete the payment.
+  </p>
+
+  <p id="receipt-line" style="margin:0.75rem 0 0 0; display:none;">
+    M-Pesa Receipt: <strong id="receipt-number"></strong>
+  </p>
+
+  <p id="error-line"
+     style="margin:0.75rem 0 0 0; display:none; color:#b91c1c;">
+    <strong id="error-text"></strong>
+  </p>
+
+  <p style="margin-top:1.5rem;">
+    <a href="{% url 'sales:pos' %}" style="font-size:0.9rem; color:#666;">
+      Cancel and return to POS
+    </a>
+  </p>
+</div>
+
+<script>
+(function () {
+  const statusUrl = "{% url 'sales:mpesa_status' sale.pk %}";
+  const receiptUrl = "{% url 'sales:receipt' sale.pk %}";
+  const statusText = document.getElementById("status-text");
+  const instructions = document.getElementById("instructions");
+  const receiptLine = document.getElementById("receipt-line");
+  const receiptNumber = document.getElementById("receipt-number");
+  const errorLine = document.getElementById("error-line");
+  const errorText = document.getElementById("error-text");
+
+  let attempts = 0;
+  const MAX_ATTEMPTS = 60;
+
+  function poll() {
+    attempts += 1;
+
+    if (attempts > MAX_ATTEMPTS) {
+      statusText.textContent = "Timed out";
+      statusText.style.color = "#b91c1c";
+      instructions.textContent =
+        "The M-Pesa prompt timed out. Ask the customer to try again or pay with cash.";
+      return;
+    }
+
+    fetch(statusUrl, { credentials: "same-origin" })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === "SUCCESS") {
+          statusText.textContent = "PAID";
+          statusText.style.color = "#059669";
+          instructions.textContent = "Payment received. Redirecting to receipt...";
+          receiptLine.style.display = "block";
+          receiptNumber.textContent = data.receipt_number || "(receipt pending)";
+          setTimeout(() => { window.location.href = receiptUrl; }, 1500);
+          return;
+        }
+
+        if (["FAILED", "CANCELLED", "TIMEOUT"].includes(data.status)) {
+          statusText.textContent = data.status;
+          statusText.style.color = "#b91c1c";
+          instructions.textContent =
+            "The payment did not complete. You can retry M-Pesa or use cash.";
+          errorLine.style.display = "block";
+          errorText.textContent = data.result_description || "Payment failed.";
+          return;
+        }
+
+        setTimeout(poll, 3000);
+      })
+      .catch(err => {
+        console.error("M-Pesa poll error:", err);
+        setTimeout(poll, 3000);
+      });
+  }
+
+  setTimeout(poll, 1000);
+})();
+</script>
+{% endblock %}

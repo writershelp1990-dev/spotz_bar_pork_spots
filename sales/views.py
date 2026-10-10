@@ -1,3 +1,6 @@
+from django.views.decorators.csrf import csrf_exempt
+from django.urls import reverse
+from django.http import JsonResponse
 import json
 from decimal import Decimal
 from django.contrib import messages
@@ -11,6 +14,11 @@ from catalog.models import Category, Product, ProductPriceHistory, UnitOfMeasure
 from accounts.models import OperatingPoint
 from .forms import CategoryForm, UnitForm, ProductForm, SellingPriceForm, ReceiptForm, CheckoutForm
 from .models import Sale, StockBalance, StockLedger
+from .mpesa import (
+    initiate_stk_push,
+    parse_callback_payload,
+    apply_callback,
+)
 from .services import (
     checkout, receive_stock, is_director, employee_point, require_active_user,
     current_selling_price
@@ -329,3 +337,129 @@ def sales_history(request):
     if not is_director(request.user):
         sales = sales.filter(cashier=request.user)
     return render(request, "sales/history.html", {"sales": sales[:200]})
+
+# ===========================================================================
+# M-Pesa STK Push views
+# ===========================================================================
+import logging as _logging
+
+_mpesa_logger = _logging.getLogger(__name__)
+
+
+@login_required
+def mpesa_pay(request, sale_id):
+    """Cashier submits customer phone. Creates STK push, redirects to wait page."""
+    require_active_user(request.user)
+    sale = get_object_or_404(Sale, pk=sale_id, completed=False)
+
+    if not is_director(request.user) and sale.cashier_id != request.user.pk:
+        raise PermissionDenied("You cannot pay for another cashier's sale.")
+
+    if request.method != "POST":
+        return redirect("sales:pos")
+
+    phone = (request.POST.get("phone_number") or "").strip()
+
+    try:
+        initiate_stk_push(sale=sale, phone_number=phone)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("sales:pos")
+    except Exception as exc:
+        _mpesa_logger.exception("M-Pesa STK push failed")
+        messages.error(request, f"M-Pesa error: {exc}")
+        return redirect("sales:pos")
+
+    return redirect("sales:mpesa_wait", sale_id=sale.pk)
+
+
+@login_required
+def mpesa_wait(request, sale_id):
+    """Waiting page that polls every 3 seconds for payment status."""
+    require_active_user(request.user)
+    sale = get_object_or_404(Sale, pk=sale_id)
+
+    if not is_director(request.user) and sale.cashier_id != request.user.pk:
+        raise PermissionDenied("You cannot view another cashier's sale.")
+
+    latest = sale.mpesa_transactions.order_by("-created_at").first()
+    return render(request, "sales/mpesa_wait.html", {
+        "sale": sale,
+        "mpesa": latest,
+    })
+
+
+@login_required
+def mpesa_status(request, sale_id):
+    """JSON endpoint polled by the waiting page."""
+    require_active_user(request.user)
+    sale = get_object_or_404(Sale, pk=sale_id)
+
+    if not is_director(request.user) and sale.cashier_id != request.user.pk:
+        raise PermissionDenied()
+
+    latest = sale.mpesa_transactions.order_by("-created_at").first()
+    if latest is None:
+        return JsonResponse({"status": "NO_TRANSACTION"})
+
+    return JsonResponse({
+        "status": latest.status,
+        "payment_status": sale.payment_status,
+        "receipt_number": latest.mpesa_receipt_number,
+        "result_description": latest.result_description,
+        "redirect_to": (
+            reverse("sales:receipt", args=[sale.pk])
+            if sale.payment_status == Sale.PaymentStatus.PAID
+            else None
+        ),
+    })
+
+
+@csrf_exempt
+def mpesa_callback(request):
+    """Safaricom POSTs here when the customer finishes entering their PIN."""
+    if request.method != "POST":
+        return JsonResponse(
+            {"ResultCode": 1, "ResultDesc": "Only POST allowed"},
+            status=405,
+        )
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        _mpesa_logger.warning("M-Pesa callback: invalid JSON")
+        return JsonResponse(
+            {"ResultCode": 1, "ResultDesc": "Invalid JSON"},
+            status=400,
+        )
+
+    _mpesa_logger.info(
+        "M-Pesa callback received: %s", json.dumps(payload)[:500]
+    )
+
+    parsed = parse_callback_payload(payload)
+    if not parsed.get("checkout_request_id"):
+        return JsonResponse(
+            {"ResultCode": 1, "ResultDesc": "Missing CheckoutRequestID"},
+            status=400,
+        )
+
+    from .models import MpesaTransaction
+    try:
+        mpesa = MpesaTransaction.objects.get(
+            checkout_request_id=parsed["checkout_request_id"]
+        )
+    except MpesaTransaction.DoesNotExist:
+        _mpesa_logger.warning(
+            "M-Pesa callback: no matching MpesaTransaction for %s",
+            parsed["checkout_request_id"],
+        )
+        return JsonResponse(
+            {"ResultCode": 1, "ResultDesc": "Unknown transaction"}
+        )
+
+    mpesa.raw_callback = payload
+    apply_callback(mpesa_transaction=mpesa, parsed=parsed)
+
+    return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
+

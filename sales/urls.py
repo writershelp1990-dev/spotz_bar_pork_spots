@@ -15,4 +15,10 @@ urlpatterns = [
     path("prices/add/", views.price_add, name="price_add"),
     path("stock/", views.stock_home, name="stock"),
     path("stock/receive/", views.stock_receive, name="stock_receive"),
+
+    # ---- M-Pesa STK Push ----
+    path("mpesa/pay/<int:sale_id>/", views.mpesa_pay, name="mpesa_pay"),
+    path("mpesa/wait/<int:sale_id>/", views.mpesa_wait, name="mpesa_wait"),
+    path("mpesa/status/<int:sale_id>/", views.mpesa_status, name="mpesa_status"),
+    path("mpesa/callback/", views.mpesa_callback, name="mpesa_callback"),
 ]
