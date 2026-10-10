@@ -17,7 +17,23 @@
   {{ form.items_json }}
   <p>{{ form.payment_method.label_tag }} {{ form.payment_method }}</p>
   <p>{{ form.amount_tendered.label_tag }} {{ form.amount_tendered }}</p>
-  <button type="submit">Complete sale</button>
+
+  <div id="mpesa-phone-field" style="display:none; margin-top:1rem; padding:1rem; border:1px solid #e5e7eb; border-radius:0.5rem; background:#fafafa;">
+    <p style="margin:0 0 0.5rem 0; font-weight:600;">Customer M-Pesa Phone Number</p>
+    <p style="margin:0 0 0.75rem 0; font-size:0.85rem; color:#666;">
+      Enter the customer phone (e.g., 0712345678). An STK prompt will be sent.
+    </p>
+    <input type="tel" name="phone_number" id="id_phone_number"
+           placeholder="0712345678" maxlength="15"
+           style="width:100%; padding:0.5rem; font-size:1rem; box-sizing:border-box;">
+  </div>
+
+  <div id="cash-change-hint" style="margin-top:0.75rem; padding:0.75rem; display:none; background:#ecfdf5; border-left:4px solid #10b981; border-radius:0.25rem;">
+    <span style="font-size:0.9rem;">Change to give:</span>
+    <strong id="cash-change-value" style="font-size:1.2rem; margin-left:0.5rem;">KES 0.00</strong>
+  </div>
+
+  <button type="submit" style="margin-top:1rem; padding:0.75rem 1.5rem; font-size:1rem;">Complete sale</button>
 </form>
 <script>
 (function () {
@@ -80,6 +96,46 @@
     }
   });
   if (products.length) addRow();
+
+  // ---- M-Pesa phone field toggle + cash change hint ----
+  const paymentSelect = document.querySelector("select[name='payment_method']");
+  const phoneField = document.getElementById("mpesa-phone-field");
+  const phoneInput = document.getElementById("id_phone_number");
+  const amountInput = document.querySelector("input[name='amount_tendered']");
+  const changeHint = document.getElementById("cash-change-hint");
+  const changeValue = document.getElementById("cash-change-value");
+
+  function updateChangeHint() {
+    const total = Number(document.getElementById("subtotal").textContent) || 0;
+    const tendered = Number(amountInput ? amountInput.value : 0) || 0;
+    const change = tendered - total;
+    if (changeValue) {
+      changeValue.textContent = "KES " + (change >= 0 ? change.toFixed(2) : "0.00");
+      changeValue.style.color = change >= 0 ? "#059669" : "#b91c1c";
+    }
+  }
+
+  function updatePaymentUI() {
+    const method = paymentSelect ? paymentSelect.value : "";
+    const isMpesa = method === "MPESA";
+    const isCash = method === "CASH";
+
+    if (phoneField) phoneField.style.display = isMpesa ? "block" : "none";
+    if (phoneInput) phoneInput.required = isMpesa;
+    if (changeHint) changeHint.style.display = isCash ? "block" : "none";
+    if (isCash) updateChangeHint();
+  }
+
+  if (paymentSelect) paymentSelect.addEventListener("change", updatePaymentUI);
+  if (amountInput) amountInput.addEventListener("input", updateChangeHint);
+
+  const _originalRefresh = refresh;
+  refresh = function () {
+    _originalRefresh();
+    if (paymentSelect && paymentSelect.value === "CASH") updateChangeHint();
+  };
+
+  updatePaymentUI();
 })();
 </script>
 {% endblock %}

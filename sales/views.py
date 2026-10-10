@@ -61,10 +61,26 @@ def pos(request):
                 operating_point=form.cleaned_data["operating_point"],
                 payment_method=form.cleaned_data["payment_method"],
                 amount_tendered=form.cleaned_data["amount_tendered"],
-                items_json=form.cleaned_data["items_json"]
+                items_json=form.cleaned_data["items_json"],
             )
-            messages.success(request, f"Sale {sale.sale_number} completed. Total KES {sale.total}; change KES {sale.change_due}.")
+
+            # M-Pesa: redirect to the STK-push screen instead of completing
+            if sale.payment_method == Sale.PaymentMethod.MPESA:
+                sale.customer_phone = (request.POST.get("phone_number") or "").strip()
+                sale.save(update_fields=["customer_phone"])
+                return redirect("sales:mpesa_pay", sale_id=sale.pk)
+
+            # Cash: complete immediately
+            sale.completed = True
+            sale.payment_status = Sale.PaymentStatus.PAID
+            sale.save(update_fields=["completed", "payment_status"])
+            messages.success(
+                request,
+                f"Sale {sale.sale_number} completed. "
+                f"Total KES {sale.total}; change KES {sale.change_due}.",
+            )
             return redirect("sales:receipt", sale_id=sale.pk)
+
         except (ValidationError, PermissionDenied) as exc:
             form.add_error(None, getattr(exc, "message", str(exc)))
     return render(request, "sales/pos.html", {
