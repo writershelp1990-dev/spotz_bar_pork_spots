@@ -185,3 +185,30 @@ DEFAULT_FROM_EMAIL = os.getenv(
     "DEFAULT_FROM_EMAIL",
     "SPOTZ BAR & PORK SPOTS <no-reply@spotz.local>",
 )
+
+# ===========================================================================
+# M-PESA (Daraja API)
+# ===========================================================================
+# In development, MPESA_MOCK_MODE=True simulates an STK push without
+# contacting Safaricom. When you have a real till/paybill and Daraja
+# credentials, set MPESA_MOCK_MODE=False and fill in the values below.
+#
+# MPESA_TRANSACTION_TYPE:
+#   CustomerBuyGoodsOnline  -> Buy Goods (Till)
+#   CustomerPayBillOnline   -> Paybill
+
+import os as _os
+
+MPESA_ENVIRONMENT = _os.environ.get("MPESA_ENVIRONMENT", "sandbox")
+MPESA_MOCK_MODE = _os.environ.get("MPESA_MOCK_MODE", "true").lower() in ("1", "true", "yes")
+
+MPESA_CONSUMER_KEY    = _os.environ.get("MPESA_CONSUMER_KEY", "")
+MPESA_CONSUMER_SECRET = _os.environ.get("MPESA_CONSUMER_SECRET", "")
+MPESA_SHORTCODE       = _os.environ.get("MPESA_SHORTCODE", "")
+MPESA_PASSKEY         = _os.environ.get("MPESA_PASSKEY", "")
+
+MPESA_TRANSACTION_TYPE = _os.environ.get(
+    "MPESA_TRANSACTION_TYPE", "CustomerBuyGoodsOnline"
+)
+MPESA_CALLBACK_URL = _os.environ.get("MPESA_CALLBACK_URL", "")
+MPESA_MOCK_DELAY_SECONDS = int(_os.environ.get("MPESA_MOCK_DELAY_SECONDS", "6"))

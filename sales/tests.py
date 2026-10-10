@@ -395,3 +395,24 @@ class ProductEditAuditRegressionTests(TestCase):
             item = sale.items.first()
             self.assertEqual(item.product_name_snapshot, expected)
 
+    def test_selling_price_form_interprets_naive_datetime_as_local(self):
+        """The SellingPriceForm must make naive datetimes timezone-aware."""
+        from django.utils import timezone
+        from sales.forms import SellingPriceForm
+
+        # Simulate what a datetime-local input sends (no timezone)
+        naive_input = "2026-10-10T02:48"
+
+        form = SellingPriceForm(data={
+            "product": str(self.product.pk),
+            "price": "60.00",
+            "effective_from": naive_input,
+            "notes": "tz test",
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        cleaned = form.cleaned_data["effective_from"]
+        self.assertFalse(
+            timezone.is_naive(cleaned),
+            "effective_from must be timezone-aware after cleaning",
+        )
+
