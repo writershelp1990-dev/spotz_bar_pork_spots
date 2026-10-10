@@ -25,7 +25,7 @@
 <table>
 <thead><tr><th>Product</th><th>Quantity</th><th>Unit price (KES)</th><th>Line total (KES)</th></tr></thead>
 <tbody>{% for i in sale.items.all %}
-<tr><td>{{ i.product_name_snapshot }}</td><td>{{ i.quantity }} {{ i.unit_name_snapshot }}</td><td>{{ i.unit_price }}</td><td>{{ i.line_total }}</td></tr>
+<tr><td>{{ i.product_name_snapshot }}</td><td>{{ i.quantity|floatformat:"-3" }} {{ i.unit_name_snapshot }}</td><td>{{ i.unit_price }}</td><td>{{ i.line_total }}</td></tr>
 {% endfor %}</tbody></table>
 <p>Subtotal: KES {{ sale.subtotal }}</p>
 <h2>Total: KES {{ sale.total }}</h2>

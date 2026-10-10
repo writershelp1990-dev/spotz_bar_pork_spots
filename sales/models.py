@@ -11,6 +11,11 @@ class Sale(models.Model):
         CARD = "CARD", "Card"
         OTHER = "OTHER", "Other"
 
+    class PaymentStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending payment"
+        PAID = "PAID", "Paid"
+        FAILED = "FAILED", "Payment failed"
+
     sale_number = models.CharField(max_length=32, unique=True)
     business_day = models.ForeignKey(
         "business.BusinessDay", on_delete=models.PROTECT,
@@ -35,26 +40,61 @@ class Sale(models.Model):
     notes = models.TextField(blank=True)
     completed = models.BooleanField(default=False)
 
+    class PaymentStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending payment"
+        PAID = "PAID", "Paid"
+        FAILED = "FAILED", "Payment failed"
+
+    payment_status = models.CharField(
+        max_length=12,
+        choices=PaymentStatus.choices,
+        default=PaymentStatus.PAID,
+        help_text="PENDING for M-Pesa until confirmed, PAID for cash.",
+    )
+
+    customer_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Set for M-Pesa payments.",
+    )
+
     class Meta:
         ordering = ["-sold_at", "-id"]
 
     def __str__(self):
         return self.sale_number
 
+    # allow sale completion transitions
     def save(self, *args, **kwargs):
         if self.pk:
-            update_fields = kwargs.get("update_fields")
-            if set(update_fields or ()) != {"completed"}:
+            update_fields = set(kwargs.get("update_fields") or ())
+
+            # Legal one-time transitions on an existing sale:
+            #   - Mark as completed (POS cash flow)
+            #   - Set payment_status to PAID/FAILED (M-Pesa callback)
+            #   - Attach a customer_phone during M-Pesa initiation
+            allowed = (
+                {"completed"}
+                | {"payment_status"}
+                | {"customer_phone"}
+                | {"completed", "payment_status"}
+                | {"customer_phone", "payment_status"}
+            )
+
+            if update_fields and not update_fields.issubset(allowed):
                 raise ValidationError(
                     "Existing sale records cannot be edited."
                 )
-            previous = type(self).objects.filter(pk=self.pk).values_list(
-                "completed", flat=True
-            ).first()
-            if previous is not False or self.completed is not True:
-                raise ValidationError(
-                    "Only an unfinished sale may be marked completed."
-                )
+
+            # Prevent flipping `completed` back to False
+            if "completed" in update_fields:
+                previous = type(self).objects.filter(pk=self.pk).values_list(
+                    "completed", flat=True
+                ).first()
+                if previous is True and self.completed is False:
+                    raise ValidationError(
+                        "A completed sale cannot be reopened."
+                    )
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
