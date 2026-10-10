@@ -21,6 +21,20 @@
     &nbsp;|&nbsp; Phone: {{ sale.customer_phone }}
   </p>
 {% endif %}
+{% if sale.payment_method == "MPESA_MANUAL" %}
+  <p>
+    <strong>M-Pesa (Customer-Paid):</strong>
+    {% with latest=sale.mpesa_manual_payments.first %}
+      {% if latest %}
+        Receipt: <strong>{{ latest.receipt_code }}</strong>
+        &nbsp;|&nbsp; Amount Paid: KES {{ latest.amount_paid }}
+        {% if latest.customer_phone %}&nbsp;|&nbsp; Phone: {{ latest.customer_phone }}{% endif %}
+      {% else %}
+        <em>No payment record found.</em>
+      {% endif %}
+    {% endwith %}
+  </p>
+{% endif %}
 
 <table>
 <thead><tr><th>Product</th><th>Quantity</th><th>Unit price (KES)</th><th>Line total (KES)</th></tr></thead>

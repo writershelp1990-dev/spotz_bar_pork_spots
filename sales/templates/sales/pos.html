@@ -28,6 +28,21 @@
            style="width:100%; padding:0.5rem; font-size:1rem; box-sizing:border-box;">
   </div>
 
+  <div id="mpesa-manual-field" style="display:none; margin-top:1rem; padding:1rem; border:1px solid #e5e7eb; border-radius:0.5rem; background:#fef3c7;">
+    <p style="margin:0 0 0.5rem 0; font-weight:600;">Customer M-Pesa Payment</p>
+    <p style="margin:0 0 0.75rem 0; font-size:0.85rem; color:#666;">
+      Enter the M-Pesa receipt code from the customer&rsquo;s confirmation SMS and the amount they paid.
+    </p>
+    <label style="display:block; margin-bottom:0.25rem; font-size:0.9rem;">M-Pesa Receipt Code</label>
+    <input type="text" name="mpesa_receipt_code" id="id_mpesa_receipt_code"
+           placeholder="e.g. SLK7X2M9AB" maxlength="12"
+           style="width:100%; padding:0.5rem; font-size:1rem; box-sizing:border-box; text-transform:uppercase; margin-bottom:0.75rem;">
+    <label style="display:block; margin-bottom:0.25rem; font-size:0.9rem;">Amount Paid (KES)</label>
+    <input type="number" name="mpesa_amount_paid" id="id_mpesa_amount_paid"
+           step="0.01" min="0"
+           style="width:100%; padding:0.5rem; font-size:1rem; box-sizing:border-box;">
+  </div>
+
   <div id="cash-change-hint" style="margin-top:0.75rem; padding:0.75rem; display:none; background:#ecfdf5; border-left:4px solid #10b981; border-radius:0.25rem;">
     <span style="font-size:0.9rem;">Change to give:</span>
     <strong id="cash-change-value" style="font-size:1.2rem; margin-left:0.5rem;">KES 0.00</strong>
@@ -120,8 +135,23 @@
     const isMpesa = method === "MPESA";
     const isCash = method === "CASH";
 
+    const isMpesaManual = method === "MPESA_MANUAL";
+    const manualField = document.getElementById("mpesa-manual-field");
+    const receiptInput = document.getElementById("id_mpesa_receipt_code");
+    const amountPaidInput = document.getElementById("id_mpesa_amount_paid");
+
     if (phoneField) phoneField.style.display = isMpesa ? "block" : "none";
     if (phoneInput) phoneInput.required = isMpesa;
+    if (manualField) manualField.style.display = isMpesaManual ? "block" : "none";
+    if (receiptInput) receiptInput.required = isMpesaManual;
+    if (amountPaidInput) amountPaidInput.required = isMpesaManual;
+
+    if (isMpesaManual) {
+      const total = Number(document.getElementById("subtotal").textContent) || 0;
+      if (amountPaidInput && total > 0 && !amountPaidInput.value) {
+        amountPaidInput.value = total.toFixed(2);
+      }
+    }
     if (changeHint) changeHint.style.display = isCash ? "block" : "none";
     if (isCash) updateChangeHint();
   }
