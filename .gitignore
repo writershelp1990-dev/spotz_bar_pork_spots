@@ -129,3 +129,6 @@ default_2.sqlite3
 phase1_*_backup_*
 phase1_*_backup_*/
 
+
+# Un-ignore the example file so it's committed
+!.env.example
