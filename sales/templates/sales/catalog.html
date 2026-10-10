@@ -26,8 +26,8 @@
   <td>{{ p.brand|default:"?" }}</td>
   <td>{{ p.variety|default:"?" }}</td>
   <td>{{ p.packaging|default:"?" }}</td>
-  <td>{% if p.size_value and p.size_unit %}{{ p.size_value }} {{ p.size_unit.abbreviation }}{% else %}?{% endif %}</td>
-  <td>{{ p.category }}</td>
+  <td>{{ p.size_display|default:"?" }}</td>
+  <td title="{{ p.category.full_path }}">{{ p.category.name }}</td>
   <td>{{ p.selling_unit.abbreviation }}</td>
   <td>{% if p.current_price != None %}{{ p.current_price }}{% else %}Not set{% endif %}</td>
   <td>{{ p.track_inventory|yesno:"Tracked,Not tracked" }}</td>

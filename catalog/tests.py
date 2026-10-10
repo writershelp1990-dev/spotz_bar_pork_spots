@@ -20,6 +20,17 @@ class PackagingAndVariantTests(TestCase):
             name="Test Crate", abbreviation="tct", unit_type="PACKAGING", is_active=True
         )
 
+    def test_size_display_strips_trailing_zeros(self):
+        from decimal import Decimal
+        p = Product(
+            name="X", size_value=Decimal("300.000"), size_unit=self.unit_ml,
+        )
+        self.assertEqual(p.size_display, "300tml")
+
+    def test_size_display_empty_when_no_size(self):
+        p = Product(name="Y")
+        self.assertEqual(p.size_display, "")
+
     def test_packaging_unit_type_exists(self):
         choices = dict(UnitOfMeasure.UnitType.choices)
         self.assertIn("PACKAGING", choices)
@@ -109,3 +120,51 @@ class PackagingAndVariantTests(TestCase):
             purchase_to_sale_ratio=Decimal("12"),
         )
         self.assertEqual(Product.objects.count(), 2)
+
+
+class CategoryHierarchyTests(TestCase):
+    """Tests for hierarchical Category (parent/child) behavior."""
+
+    def setUp(self):
+        self.spirits = Category.objects.create(name="Spirits H", is_active=True)
+        self.vodka = Category.objects.create(
+            name="Vodka H", parent=self.spirits, is_active=True
+        )
+        self.whiskey = Category.objects.create(
+            name="Whiskey H", parent=self.spirits, is_active=True
+        )
+
+    def test_full_path_contains_parent(self):
+        self.assertEqual(self.vodka.full_path, "Spirits H > Vodka H")
+
+    def test_top_level_full_path_is_name(self):
+        self.assertEqual(self.spirits.full_path, "Spirits H")
+
+    def test_str_shows_full_path_for_child(self):
+        self.assertEqual(str(self.vodka), "Spirits H > Vodka H")
+
+    def test_str_is_name_for_root(self):
+        self.assertEqual(str(self.spirits), "Spirits H")
+
+    def test_is_root_property(self):
+        self.assertTrue(self.spirits.is_root)
+        self.assertFalse(self.vodka.is_root)
+
+    def test_cannot_create_two_siblings_with_same_name(self):
+        from django.db import IntegrityError, transaction
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Category.objects.create(
+                    name="Vodka H", parent=self.spirits, is_active=True
+                )
+
+    def test_can_create_same_name_under_different_parents(self):
+        rum = Category.objects.create(name="Rum H", parent=self.spirits, is_active=True)
+        cocktail = Category.objects.create(name="Cocktails H", is_active=True)
+        rum2 = Category.objects.create(name="Rum H", parent=cocktail, is_active=True)
+        self.assertEqual(rum.name, rum2.name)
+        self.assertNotEqual(rum.parent_id, rum2.parent_id)
+
+    def test_can_create_top_level_with_same_name_as_child(self):
+        top = Category.objects.create(name="Vodka H", parent=None, is_active=True)
+        self.assertIsNone(top.parent_id)

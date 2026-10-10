@@ -5,7 +5,15 @@ from django.db import models
 class Category(models.Model):
     name = models.CharField(
         max_length=100,
-        unique=True,
+    )
+
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        related_name="children",
+        null=True,
+        blank=True,
+        help_text="Optional. Leave blank for a top-level category.",
     )
 
     description = models.TextField(
@@ -27,9 +35,30 @@ class Category(models.Model):
     class Meta:
         ordering = ["name"]
         verbose_name_plural = "Categories"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "parent"],
+                name="unique_category_name_per_parent",
+            )
+        ]
 
     def __str__(self):
+        if self.parent_id:
+            return f"{self.parent.name} > {self.name}"
         return self.name
+
+    @property
+    def full_path(self):
+        parts = [self.name]
+        node = self.parent
+        while node is not None:
+            parts.append(node.name)
+            node = node.parent
+        return " > ".join(reversed(parts))
+
+    @property
+    def is_root(self):
+        return self.parent_id is None
 
 
 class UnitOfMeasure(models.Model):
@@ -230,6 +259,14 @@ class Product(models.Model):
         if parts:
             return " ".join(parts)
         return self.name or f"Product {self.pk}"
+
+    @property
+    def size_display(self):
+        """Size formatted without trailing zeros, e.g. '500ml' not '500.000ml'."""
+        if self.size_value is None or not self.size_unit_id:
+            return ""
+        size = format(self.size_value.normalize(), "f")
+        return f"{size}{self.size_unit.abbreviation}"
 
     def __str__(self):
         return self.display_name

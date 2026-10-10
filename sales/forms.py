@@ -6,7 +6,13 @@ from .models import Sale
 class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
-        fields = ["name", "description", "is_active"]
+        fields = ["name", "parent", "description", "is_active"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["parent"].queryset = Category.objects.filter(is_active=True)
+        self.fields["parent"].required = False
+        self.fields["parent"].empty_label = "(Top-level category)"
 
 class UnitForm(forms.ModelForm):
     class Meta:
@@ -37,7 +43,8 @@ class ProductForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["category"].queryset = Category.objects.filter(
             is_active=True
-        )
+        ).select_related("parent")
+        self.fields["category"].label_from_instance = lambda obj: obj.full_path
         self.fields["purchase_unit"].queryset = UnitOfMeasure.objects.filter(
             is_active=True
         )
@@ -75,6 +82,25 @@ class SellingPriceForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["product"].queryset = Product.objects.filter(is_active=True)
         self.fields["effective_from"].input_formats = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S%z"]
+
+    def clean_effective_from(self):
+        """Interpret a naive datetime as the current local timezone.
+
+        The HTML `datetime-local` input submits a string with no timezone
+        (e.g. "2026-10-10T02:48"). Django parses it as a naive datetime.
+        With USE_TZ=True, saving a naive datetime gets interpreted as UTC,
+        which is wrong — the user's input means local time.
+
+        This makes the value timezone-aware using the current timezone
+        (Africa/Nairobi in production) so "2:48 a.m." means "2:48 a.m.
+        Nairobi", not "2:48 a.m. UTC".
+        """
+        from django.utils import timezone
+
+        value = self.cleaned_data.get("effective_from")
+        if value is not None and timezone.is_naive(value):
+            value = timezone.make_aware(value, timezone.get_current_timezone())
+        return value
 
     def clean_price(self):
         price = self.cleaned_data["price"]
