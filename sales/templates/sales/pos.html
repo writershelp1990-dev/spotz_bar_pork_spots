@@ -1,61 +1,182 @@
 {% extends "sales/base_sales.html" %}
 {% block sales_content %}
 <h1>Point of Sale</h1>
+
 {% if not products_json or products_json == "[]" %}
 <p>No products have an effective selling price yet. Add categories, units, products, and selling prices before checkout.</p>
 {% endif %}
+
+{% if form.non_field_errors %}
+<div style="background:#fee2e2; border-left:4px solid #b91c1c; padding:0.75rem; margin-bottom:1rem; border-radius:0.25rem;">
+  <strong>Error:</strong>
+  {{ form.non_field_errors }}
+</div>
+{% endif %}
+
 <form method="post" id="checkout-form">
   {% csrf_token %}
-  {{ form.non_field_errors }}
+  {{ form.operating_point }}
+
   <p>{{ form.operating_point.label_tag }} {{ form.operating_point }}</p>
+
   <h2>Items</h2>
   <div style="overflow-x:auto">
-  <table id="cart"><thead><tr><th>Product</th><th>Quantity</th><th>Unit price</th><th>Line total</th><th></th></tr></thead><tbody></tbody></table>
+    <table id="cart">
+      <thead>
+        <tr>
+          <th>Product</th><th>Quantity</th><th>Unit price</th><th>Line total</th><th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
   <p><button type="button" id="add-row">Add item</button></p>
+
   <p>Subtotal: KES <strong id="subtotal">0.00</strong></p>
+
   {{ form.items_json }}
+  {{ form.mpesa_codes_json }}
+  {{ form.mpesa_cash_amount }}
+  {{ form.batch_sale_ids_json }}
+  {{ form.hold_as_unpaid }}
+
   <p>{{ form.payment_method.label_tag }} {{ form.payment_method }}</p>
   <p>{{ form.amount_tendered.label_tag }} {{ form.amount_tendered }}</p>
-
-  <div id="mpesa-phone-field" style="display:none; margin-top:1rem; padding:1rem; border:1px solid #e5e7eb; border-radius:0.5rem; background:#fafafa;">
-    <p style="margin:0 0 0.5rem 0; font-weight:600;">Customer M-Pesa Phone Number</p>
-    <p style="margin:0 0 0.75rem 0; font-size:0.85rem; color:#666;">
-      Enter the customer phone (e.g., 0712345678). An STK prompt will be sent.
-    </p>
-    <input type="tel" name="phone_number" id="id_phone_number"
-           placeholder="0712345678" maxlength="15"
-           style="width:100%; padding:0.5rem; font-size:1rem; box-sizing:border-box;">
-  </div>
-
-  <div id="mpesa-manual-field" style="display:none; margin-top:1rem; padding:1rem; border:1px solid #e5e7eb; border-radius:0.5rem; background:#fef3c7;">
-    <p style="margin:0 0 0.5rem 0; font-weight:600;">Customer M-Pesa Payment</p>
-    <p style="margin:0 0 0.75rem 0; font-size:0.85rem; color:#666;">
-      Enter the M-Pesa receipt code from the customer&rsquo;s confirmation SMS and the amount they paid.
-    </p>
-    <label style="display:block; margin-bottom:0.25rem; font-size:0.9rem;">M-Pesa Receipt Code</label>
-    <input type="text" name="mpesa_receipt_code" id="id_mpesa_receipt_code"
-           placeholder="e.g. SLK7X2M9AB" maxlength="12"
-           style="width:100%; padding:0.5rem; font-size:1rem; box-sizing:border-box; text-transform:uppercase; margin-bottom:0.75rem;">
-    <label style="display:block; margin-bottom:0.25rem; font-size:0.9rem;">Amount Paid (KES)</label>
-    <input type="number" name="mpesa_amount_paid" id="id_mpesa_amount_paid"
-           step="0.01" min="0"
-           style="width:100%; padding:0.5rem; font-size:1rem; box-sizing:border-box;">
-  </div>
 
   <div id="cash-change-hint" style="margin-top:0.75rem; padding:0.75rem; display:none; background:#ecfdf5; border-left:4px solid #10b981; border-radius:0.25rem;">
     <span style="font-size:0.9rem;">Change to give:</span>
     <strong id="cash-change-value" style="font-size:1.2rem; margin-left:0.5rem;">KES 0.00</strong>
   </div>
 
-  <button type="submit" style="margin-top:1rem; padding:0.75rem 1.5rem; font-size:1rem;">Complete sale</button>
+  <div style="margin-top:1rem; display:flex; gap:0.5rem;">
+    <button type="submit" id="submit-complete" style="padding:0.75rem 1.5rem; font-size:1rem;">Complete sale</button>
+    <button type="submit" id="submit-hold" name="hold_as_unpaid" value="1"
+            style="padding:0.75rem 1.5rem; font-size:1rem; background:#f3f4f6; color:#374151; border:1px solid #d1d5db;">
+      Hold as unpaid
+    </button>
+  </div>
 </form>
+
+<!-- ============================================================ -->
+<!-- M-Pesa Customer-Paid Modal                                    -->
+<!-- ============================================================ -->
+<div id="mpesa-modal-backdrop"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+  <div id="mpesa-modal"
+       style="background:#fff; border-radius:0.75rem; max-width:720px; width:92%; max-height:90vh; overflow-y:auto; padding:1.5rem; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+
+    <h2 style="margin-top:0;">M-Pesa Payment Confirmation</h2>
+    <p style="color:#555;">
+      Confirm you have seen the customer&apos;s M-Pesa confirmation SMS.
+      Enter the receipt code and amount for each payment.
+    </p>
+
+    <div style="background:#fef3c7; border-left:4px solid #f59e0b; padding:0.75rem; margin-bottom:1rem; border-radius:0.25rem; font-size:0.9rem;">
+      <strong>Rules:</strong>
+      M-Pesa amount cannot exceed the sale total. Any balance must be paid in cash. Change is only given from cash.
+    </div>
+
+    <h3 style="margin-bottom:0.5rem;">Sale total: KES <span id="modal-sale-total">0.00</span></h3>
+
+    <table id="mpesa-codes-table" style="width:100%; border-collapse:collapse; margin-top:0.75rem;">
+      <thead>
+        <tr style="border-bottom:1px solid #e5e7eb;">
+          <th style="text-align:left; padding:0.5rem;">M-Pesa Code</th>
+          <th style="text-align:left; padding:0.5rem;">Amount (KES)</th>
+          <th style="text-align:center; padding:0.5rem;"></th>
+        </tr>
+      </thead>
+      <tbody id="mpesa-codes-body">
+        <!-- rows injected by JS -->
+      </tbody>
+    </table>
+
+    <p style="margin-top:0.75rem;">
+      <button type="button" id="mpesa-add-row"
+              style="padding:0.5rem 1rem; background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; border-radius:0.5rem;">
+        + Add another code
+      </button>
+    </p>
+
+    <div style="margin-top:1rem; padding-top:1rem; border-top:1px solid #e5e7eb;">
+      <p style="margin:0;">
+        <strong>Total M-Pesa:</strong> KES <span id="mpesa-total">0.00</span>
+      </p>
+      <p id="mpesa-remaining-line" style="margin:0.5rem 0 0 0;">
+        <strong>Remaining to pay by cash:</strong> KES <span id="mpesa-remaining">0.00</span>
+      </p>
+    </div>
+
+    <div id="cash-block" style="margin-top:0.75rem; display:none;">
+      <label style="display:block; margin-bottom:0.25rem;">Cash collected (KES)</label>
+      <input type="number" id="modal-cash-input" step="0.01" min="0" value="0.00"
+             style="width:100%; padding:0.5rem; font-size:1rem; box-sizing:border-box;">
+    </div>
+
+    <div id="open-sales-block" style="margin-top:1rem; padding-top:1rem; border-top:1px solid #e5e7eb; display:none;">
+      <p style="margin:0 0 0.5rem 0; font-weight:600;">
+        This code covers more than this sale. Select open sales it should also pay:
+      </p>
+      <div id="open-sales-list" style="max-height:180px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:0.5rem; padding:0.5rem;">
+        <!-- checkboxes injected by JS -->
+      </div>
+    </div>
+
+    <div id="modal-summary" style="margin-top:1rem; font-size:0.95rem;"></div>
+
+    <div style="margin-top:1.25rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+      <button type="button" id="mpesa-cancel"
+              style="padding:0.75rem 1.25rem; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; border-radius:0.5rem;">
+        Cancel
+      </button>
+      <button type="button" id="mpesa-confirm"
+              style="padding:0.75rem 1.25rem; background:#059669; color:white; border:none; border-radius:0.5rem;">
+        Confirm Payment
+      </button>
+    </div>
+
+  </div>
+</div>
+
 <script>
 (function () {
   const products = {{ products_json|safe }};
   const tbody = document.querySelector("#cart tbody");
   const hidden = document.getElementById("id_items_json");
-  const subtotal = document.getElementById("subtotal");
+  const subtotalEl = document.getElementById("subtotal");
+
+  const paymentSelect = document.querySelector("select[name='payment_method']");
+  const amountInput = document.querySelector("input[name='amount_tendered']");
+  const changeHint = document.getElementById("cash-change-hint");
+  const changeValue = document.getElementById("cash-change-value");
+
+  const hiddenCodes = document.getElementById("id_mpesa_codes_json");
+  const hiddenBatch = document.getElementById("id_batch_sale_ids_json");
+  const hiddenCash = document.getElementById("id_mpesa_cash_amount");
+
+  const modalBackdrop = document.getElementById("mpesa-modal-backdrop");
+  const codesBody = document.getElementById("mpesa-codes-body");
+  const addRowBtn = document.getElementById("mpesa-add-row");
+  const mpesaTotalEl = document.getElementById("mpesa-total");
+  const mpesaRemainingEl = document.getElementById("mpesa-remaining");
+  const cashBlock = document.getElementById("cash-block");
+  const modalCashInput = document.getElementById("modal-cash-input");
+  const openSalesBlock = document.getElementById("open-sales-block");
+  const openSalesList = document.getElementById("open-sales-list");
+  const modalSummary = document.getElementById("modal-summary");
+  const modalSaleTotal = document.getElementById("modal-sale-total");
+  const confirmBtn = document.getElementById("mpesa-confirm");
+  const cancelBtn = document.getElementById("mpesa-cancel");
+  const form = document.getElementById("checkout-form");
+  const submitComplete = document.getElementById("submit-complete");
+  const submitHold = document.getElementById("submit-hold");
+
+  let submitting = false;
+  let openSalesCache = null;
+
+  // ---------------------------------------------------------------
+  // Cart logic (unchanged)
+  // ---------------------------------------------------------------
   function refresh() {
     let total = 0, items = [];
     tbody.querySelectorAll("tr").forEach(row => {
@@ -70,10 +191,13 @@
       total += line;
       if (p && qty > 0) items.push({product_id: p.id, quantity: qty});
     });
-    subtotal.textContent = total.toFixed(2);
+    subtotalEl.textContent = total.toFixed(2);
     hidden.value = JSON.stringify(items);
+    updateChangeHint();
+    if (modalBackdrop.style.display !== "none") updateModal();
   }
-  function addRow() {
+
+  function addCartRow() {
     const row = document.createElement("tr");
     const productCell = document.createElement("td");
     const select = document.createElement("select");
@@ -103,69 +227,284 @@
     qty.addEventListener("input", refresh);
     refresh();
   }
-  document.getElementById("add-row").addEventListener("click", addRow);
-  document.getElementById("checkout-form").addEventListener("submit", function (e) {
-    refresh();
-    if (!hidden.value || JSON.parse(hidden.value).length === 0) {
-      e.preventDefault(); alert("Add at least one valid product.");
-    }
-  });
-  if (products.length) addRow();
+  document.getElementById("add-row").addEventListener("click", addCartRow);
 
-  // ---- M-Pesa phone field toggle + cash change hint ----
-  const paymentSelect = document.querySelector("select[name='payment_method']");
-  const phoneField = document.getElementById("mpesa-phone-field");
-  const phoneInput = document.getElementById("id_phone_number");
-  const amountInput = document.querySelector("input[name='amount_tendered']");
-  const changeHint = document.getElementById("cash-change-hint");
-  const changeValue = document.getElementById("cash-change-value");
-
+  // ---------------------------------------------------------------
+  // Cash change hint
+  // ---------------------------------------------------------------
   function updateChangeHint() {
-    const total = Number(document.getElementById("subtotal").textContent) || 0;
+    const total = Number(subtotalEl.textContent) || 0;
     const tendered = Number(amountInput ? amountInput.value : 0) || 0;
     const change = tendered - total;
-    if (changeValue) {
-      changeValue.textContent = "KES " + (change >= 0 ? change.toFixed(2) : "0.00");
-      changeValue.style.color = change >= 0 ? "#059669" : "#b91c1c";
-    }
-  }
-
-  function updatePaymentUI() {
-    const method = paymentSelect ? paymentSelect.value : "";
-    const isMpesa = method === "MPESA";
-    const isCash = method === "CASH";
-
-    const isMpesaManual = method === "MPESA_MANUAL";
-    const manualField = document.getElementById("mpesa-manual-field");
-    const receiptInput = document.getElementById("id_mpesa_receipt_code");
-    const amountPaidInput = document.getElementById("id_mpesa_amount_paid");
-
-    if (phoneField) phoneField.style.display = isMpesa ? "block" : "none";
-    if (phoneInput) phoneInput.required = isMpesa;
-    if (manualField) manualField.style.display = isMpesaManual ? "block" : "none";
-    if (receiptInput) receiptInput.required = isMpesaManual;
-    if (amountPaidInput) amountPaidInput.required = isMpesaManual;
-
-    if (isMpesaManual) {
-      const total = Number(document.getElementById("subtotal").textContent) || 0;
-      if (amountPaidInput && total > 0 && !amountPaidInput.value) {
-        amountPaidInput.value = total.toFixed(2);
+    const shouldShow = total > 0 && tendered > 0;
+    changeHint.style.display = shouldShow ? "block" : "none";
+    if (shouldShow) {
+      if (change >= 0) {
+        changeValue.textContent = "KES " + change.toFixed(2);
+        changeValue.style.color = "#059669";
+      } else {
+        changeValue.textContent = "Need KES " + (-change).toFixed(2) + " more";
+        changeValue.style.color = "#b91c1c";
       }
     }
-    if (changeHint) changeHint.style.display = isCash ? "block" : "none";
-    if (isCash) updateChangeHint();
   }
-
-  if (paymentSelect) paymentSelect.addEventListener("change", updatePaymentUI);
   if (amountInput) amountInput.addEventListener("input", updateChangeHint);
 
-  const _originalRefresh = refresh;
-  refresh = function () {
-    _originalRefresh();
-    if (paymentSelect && paymentSelect.value === "CASH") updateChangeHint();
-  };
+  // ---------------------------------------------------------------
+  // Payment method toggle
+  // ---------------------------------------------------------------
+  function updatePaymentUI() {
+    const method = paymentSelect ? paymentSelect.value : "";
+    if (method !== "MPESA_MANUAL") {
+      closeModal();
+    }
+  }
+  if (paymentSelect) paymentSelect.addEventListener("change", updatePaymentUI);
 
-  updatePaymentUI();
+  // ---------------------------------------------------------------
+  // Intercept form submit
+  // ---------------------------------------------------------------
+  form.addEventListener("submit", function (e) {
+    if (submitting) return;
+
+    // Prevent double-submit during modal flow
+    if (paymentSelect.value === "MPESA_MANUAL" && !submitting) {
+      // Check if the modal is already open
+      if (modalBackdrop.style.display === "none") {
+        e.preventDefault();
+        openModal();
+        return;
+      }
+    }
+  });
+
+  // ---------------------------------------------------------------
+  // Modal logic
+  // ---------------------------------------------------------------
+  function openModal() {
+    const total = Number(subtotalEl.textContent) || 0;
+    if (total <= 0) {
+      alert("Add at least one item to the cart first.");
+      return;
+    }
+    modalSaleTotal.textContent = total.toFixed(2);
+    codesBody.innerHTML = "";
+    addCodeRow();
+    modalCashInput.value = "0.00";
+    hiddenBatch.value = "[]";
+    openSalesBlock.style.display = "none";
+    openSalesCache = null;
+    modalBackdrop.style.display = "flex";
+    updateModal();
+    // Fetch open sales for batch option
+    fetchOpenSales();
+  }
+
+  function closeModal() {
+    modalBackdrop.style.display = "none";
+  }
+
+  function addCodeRow() {
+    const tr = document.createElement("tr");
+    tr.style.borderBottom = "1px solid #f1f5f9";
+
+    const codeTd = document.createElement("td");
+    codeTd.style.padding = "0.5rem";
+    const codeInput = document.createElement("input");
+    codeInput.type = "text";
+    codeInput.placeholder = "e.g. SLK7X2M9AB";
+    codeInput.maxLength = 12;
+    codeInput.style.cssText = "width:100%; padding:0.4rem; text-transform:uppercase; box-sizing:border-box;";
+    codeTd.appendChild(codeInput);
+
+    const amtTd = document.createElement("td");
+    amtTd.style.padding = "0.5rem";
+    const amtInput = document.createElement("input");
+    amtInput.type = "number";
+    amtInput.step = "0.01";
+    amtInput.min = "0";
+    amtInput.value = "0.00";
+    amtInput.style.cssText = "width:100%; padding:0.4rem; box-sizing:border-box;";
+    amtTd.appendChild(amtInput);
+
+    const rmTd = document.createElement("td");
+    rmTd.style.padding = "0.5rem";
+    rmTd.style.textAlign = "center";
+    const rmBtn = document.createElement("button");
+    rmBtn.type = "button";
+    rmBtn.textContent = "×";
+    rmBtn.title = "Remove row";
+    rmBtn.style.cssText = "padding:0.25rem 0.5rem; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:0.25rem; cursor:pointer;";
+    rmBtn.addEventListener("click", () => {
+      if (codesBody.querySelectorAll("tr").length <= 1) return;
+      tr.remove();
+      updateModal();
+    });
+    rmTd.appendChild(rmBtn);
+
+    tr.append(codeTd, amtTd, rmTd);
+    codesBody.appendChild(tr);
+
+    codeInput.addEventListener("input", updateModal);
+    amtInput.addEventListener("input", updateModal);
+    codeInput.focus();
+  }
+
+  addRowBtn.addEventListener("click", () => { addCodeRow(); updateModal(); });
+
+  function readCodeRows() {
+    const rows = [];
+    codesBody.querySelectorAll("tr").forEach(tr => {
+      const inputs = tr.querySelectorAll("input");
+      const code = (inputs[0].value || "").trim().toUpperCase();
+      const amount = Number(inputs[1].value || 0);
+      rows.push({ code, amount });
+    });
+    return rows;
+  }
+
+  function updateModal() {
+    const rows = readCodeRows();
+    const mpesaTotal = rows.reduce((s, r) => s + (r.amount || 0), 0);
+    const saleTotal = Number(subtotalEl.textContent) || 0;
+    const cash = Number(modalCashInput.value || 0);
+    const remaining = Math.max(0, saleTotal - mpesaTotal);
+
+    mpesaTotalEl.textContent = mpesaTotal.toFixed(2);
+    mpesaRemainingEl.textContent = remaining.toFixed(2);
+
+    // Show cash field only when M-Pesa doesn't cover full
+    cashBlock.style.display = (mpesaTotal < saleTotal) ? "block" : "none";
+
+    // Enable/disable confirm
+    let valid = true;
+    let reason = "";
+
+    if (rows.length === 0) { valid = false; reason = "Enter at least one M-Pesa code."; }
+    rows.forEach((r, i) => {
+      if (!r.code) { valid = false; reason = "Row " + (i+1) + ": code is required."; }
+      else if (!/^[A-Z0-9]{8,12}$/.test(r.code)) { valid = false; reason = "Row " + (i+1) + ": invalid code format."; }
+      else if (!(r.amount > 0)) { valid = false; reason = "Row " + (i+1) + ": amount must be > 0."; }
+    });
+
+    if (mpesaTotal > saleTotal) {
+      valid = false;
+      reason = "M-Pesa (" + mpesaTotal.toFixed(2) + ") exceeds sale total (" + saleTotal.toFixed(2) + ").";
+    }
+
+    const totalPaid = mpesaTotal + cash;
+    if (totalPaid < saleTotal) {
+      valid = false;
+      reason = "Total paid (" + totalPaid.toFixed(2) + ") is less than sale (" + saleTotal.toFixed(2) + ").";
+    }
+
+    if (mpesaTotal === saleTotal && cash > 0) {
+      valid = false;
+      reason = "M-Pesa already covers the full sale. Cash not accepted for this sale.";
+    }
+
+    confirmBtn.disabled = !valid;
+    confirmBtn.style.opacity = valid ? "1" : "0.5";
+
+    // Summary
+    let summary = "";
+    if (valid) {
+      const change = Math.max(0, cash - remaining);
+      summary = "Ready to confirm. Change: KES " + change.toFixed(2);
+      modalSummary.style.color = "#059669";
+    } else {
+      summary = reason;
+      modalSummary.style.color = "#b91c1c";
+    }
+    modalSummary.textContent = summary;
+
+    // Open sales picker (when M-Pesa exceeds current sale)
+    if (mpesaTotal > saleTotal && openSalesCache && openSalesCache.length > 0) {
+      openSalesBlock.style.display = "block";
+      renderOpenSales();
+    } else {
+      openSalesBlock.style.display = "none";
+    }
+  }
+
+  modalCashInput.addEventListener("input", updateModal);
+
+  // ---------------------------------------------------------------
+  // Fetch open sales for batch option
+  // ---------------------------------------------------------------
+  function fetchOpenSales() {
+    fetch("/sales/api/open-sales/", { credentials: "same-origin" })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        openSalesCache = Array.isArray(data) ? data : [];
+      })
+      .catch(() => { openSalesCache = []; });
+  }
+
+  function renderOpenSales() {
+    if (!openSalesCache) return;
+    openSalesList.innerHTML = "";
+    openSalesCache.forEach(s => {
+      const label = document.createElement("label");
+      label.style.cssText = "display:block; padding:0.35rem; cursor:pointer;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.value = String(s.id);
+      cb.addEventListener("change", updateModal);
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(
+        "  Sale #" + s.id + " — KES " + s.total
+      ));
+      openSalesList.appendChild(label);
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // Confirm
+  // ---------------------------------------------------------------
+  confirmBtn.addEventListener("click", function () {
+    const rows = readCodeRows();
+    const saleTotal = Number(subtotalEl.textContent) || 0;
+    const mpesaTotal = rows.reduce((s, r) => s + (r.amount || 0), 0);
+    const cash = mpesaTotal >= saleTotal ? 0 : Number(modalCashInput.value || 0);
+
+    // Batch: check selected open sales
+    const batchIds = [];
+    openSalesList.querySelectorAll("input[type='checkbox']").forEach(cb => {
+      if (cb.checked) batchIds.push(Number(cb.value));
+    });
+
+    // If a batch is selected, verify total matches
+    if (batchIds.length > 0) {
+      let batchTotal = 0;
+      openSalesCache.forEach(s => {
+        if (batchIds.includes(s.id)) batchTotal += Number(s.total);
+      });
+      const expected = saleTotal + batchTotal;
+      if (Math.abs(expected - mpesaTotal) > 0.01) {
+        alert("M-Pesa total (" + mpesaTotal.toFixed(2) + ") must exactly match the sum of selected sales (" + expected.toFixed(2) + ").");
+        return;
+      }
+    }
+
+    hiddenCodes.value = JSON.stringify(rows.map(r => ({ code: r.code, amount: r.amount.toFixed(2) })));
+    hiddenCash.value = cash.toFixed(2);
+    hiddenBatch.value = JSON.stringify(batchIds);
+
+    submitting = true;
+    closeModal();
+    form.submit();
+  });
+
+  cancelBtn.addEventListener("click", function () {
+    closeModal();
+  });
+
+  // ---------------------------------------------------------------
+  // Initial UI state
+  // ---------------------------------------------------------------
+  updateChangeHint();
+  if (products.length) addCartRow();
 })();
 </script>
 {% endblock %}
