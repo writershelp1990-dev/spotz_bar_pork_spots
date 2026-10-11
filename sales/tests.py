@@ -425,10 +425,11 @@ class ProductEditAuditRegressionTests(TestCase):
         )
 
 
-class MpesaManualPaymentTests(TestCase):
-    """Regression tests for the customer-paid (manual) M-Pesa flow."""
+class MpesaV2PaymentTests(TestCase):
+    """Regression tests for the multi-code / multi-sale M-Pesa flow."""
 
     def setUp(self):
+        from decimal import Decimal
         from django.contrib.auth import get_user_model
         from django.utils import timezone
         from accounts.models import OperatingPoint
@@ -447,33 +448,32 @@ class MpesaManualPaymentTests(TestCase):
             "is_active_staff": True,
         }
         if "username" in user_fields:
-            kwargs["username"] = "manual_mpesa_director"
+            kwargs["username"] = "mpesa_v2_tester"
         elif "national_id" in user_fields:
-            kwargs["national_id"] = "MANUAL-MPESA-001"
+            kwargs["national_id"] = "MPESA-V2-001"
         self.user = User.objects.create_user(**kwargs)
 
         self.point = OperatingPoint.objects.create(
-            code="BAR-MANUAL", name="Bar Manual", is_active=True,
+            code="BAR-V2", name="Bar V2", is_active=True,
         )
 
         self.category = Category.objects.create(
-            name="Manual M-Pesa Category", is_active=True,
+            name="Mpesa V2 Category", is_active=True,
         )
         self.unit = UnitOfMeasure.objects.create(
-            name="Manual Unit", abbreviation="mun",
+            name="V2 Unit", abbreviation="v2u",
             unit_type="VOLUME", is_active=True,
         )
         self.product = Product.objects.create(
-            name="Manual M-Pesa Product",
-            brand="ManualBrand", variety="ManualVariety",
+            name="Mpesa V2 Product",
+            brand="TestBrand", variety="TestVariety",
             packaging="Bottle", size_value=Decimal("500"),
-            size_unit=self.unit, code="MANUAL-MPESA-TEST",
+            size_unit=self.unit, code="MPESA-V2-TEST",
             category=self.category, product_type="NON_ALCOHOLIC",
             purchase_unit=self.unit, selling_unit=self.unit,
             purchase_to_sale_ratio=Decimal("1"),
             is_active=True, track_inventory=True,
         )
-
         ProductPriceHistory.objects.create(
             product=self.product,
             price_type="SELLING",
@@ -482,11 +482,8 @@ class MpesaManualPaymentTests(TestCase):
             effective_from=timezone.now() - timezone.timedelta(minutes=1),
         )
 
-        # Ensure an open business day for today
         today = timezone.localdate()
-        BusinessDay.objects.filter(
-            business_date=today, status="OPEN"
-        ).delete()
+        BusinessDay.objects.filter(business_date=today, status="OPEN").delete()
         BusinessDay.objects.create(
             business_date=today,
             status="OPEN",
@@ -494,16 +491,20 @@ class MpesaManualPaymentTests(TestCase):
             actual_opened_at=timezone.now(),
         )
 
-        # Give the product enough stock at the test point
+        # Give plenty of stock
         StockBalance.objects.create(
             product=self.product,
             operating_point=self.point,
-            quantity=Decimal("100.000"),
+            quantity=Decimal("1000.000"),
         )
 
         self.client.force_login(self.user)
 
-    def _post(self, **overrides):
+    # -----------------------------------------------------------------------
+    # Helpers
+    # -----------------------------------------------------------------------
+    def _post_mpesa(self, *, codes, cash="0.00", batch_ids=None, **extra):
+        """Submit the POS form as MPESA_MANUAL with the given codes."""
         import json
         from django.urls import reverse
         data = {
@@ -513,56 +514,258 @@ class MpesaManualPaymentTests(TestCase):
             "items_json": json.dumps([
                 {"product_id": self.product.pk, "quantity": 1}
             ]),
-            "mpesa_receipt_code": "SLK7X2M9AB",
-            "mpesa_amount_paid": "100.00",
-            "phone_number": "",
+            "mpesa_codes_json": json.dumps(codes),
+            "mpesa_cash_amount": cash,
+            "batch_sale_ids_json": json.dumps(batch_ids or []),
         }
-        data.update(overrides)
+        data.update(extra)
         return self.client.post(reverse("sales:pos"), data)
 
-    def test_manual_mpesa_creates_payment_record(self):
-        from sales.models import MpesaManualPayment
-        response = self._post()
-        self.assertEqual(response.status_code, 302, response.content[:500])
-        record = MpesaManualPayment.objects.get(receipt_code="SLK7X2M9AB")
-        self.assertEqual(record.amount_paid, 100)
-        self.assertEqual(record.recorded_by, self.user)
+    def _post_cash(self, *, amount="100.00"):
+        import json
+        from django.urls import reverse
+        return self.client.post(reverse("sales:pos"), {
+            "operating_point": str(self.point.pk),
+            "payment_method": "CASH",
+            "amount_tendered": amount,
+            "items_json": json.dumps([
+                {"product_id": self.product.pk, "quantity": 1}
+            ]),
+        })
 
-    def test_manual_mpesa_marks_sale_paid(self):
-        from sales.models import Sale
-        response = self._post()
-        self.assertEqual(response.status_code, 302)
+    def _hold_sale(self):
+        """Create an unpaid (held) sale by submitting via M-Pesa Manual
+        with an empty codes list — the view must reject, so instead we
+        create the sale directly in PENDING state."""
+        from decimal import Decimal
+        from django.utils import timezone
+        from sales.models import Sale, SaleItem
+
+        sale = Sale.objects.create(
+            sale_number="HELD-" + str(Sale.objects.count() + 1),
+            business_day_id=1,
+            operating_point=self.point,
+            cashier=self.user,
+            payment_method="MPESA_MANUAL",
+            subtotal=Decimal("100.00"),
+            total=Decimal("100.00"),
+            amount_tendered=Decimal("0.00"),
+            change_due=Decimal("0.00"),
+            completed=False,
+            payment_status=Sale.PaymentStatus.PENDING,
+        )
+        SaleItem.objects.create(
+            sale=sale, product=self.product,
+            product_name_snapshot="Test",
+            product_code_snapshot="TEST",
+            unit_name_snapshot="v2u",
+            quantity=Decimal("1.000"),
+            unit_price=Decimal("100.00"),
+            line_total=Decimal("100.00"),
+        )
+        return sale
+
+    # -----------------------------------------------------------------------
+    # Happy paths
+    # -----------------------------------------------------------------------
+    def test_single_code_full_payment(self):
+        from sales.models import Sale, MpesaPayment, MpesaPaymentAllocation
+        response = self._post_mpesa(codes=[{"code": "SLK7X2M9AB", "amount": "100.00"}])
+        self.assertEqual(response.status_code, 302, response.content[:400])
+        self.assertEqual(MpesaPayment.objects.count(), 1)
+        self.assertEqual(MpesaPaymentAllocation.objects.count(), 1)
         sale = Sale.objects.latest("id")
         self.assertTrue(sale.completed)
         self.assertEqual(sale.payment_status, "PAID")
-        self.assertEqual(sale.payment_method, "MPESA_MANUAL")
 
-    def test_duplicate_receipt_code_rejected(self):
-        from sales.models import MpesaManualPayment
-        self._post()
-        self.assertEqual(MpesaManualPayment.objects.count(), 1)
-        response = self._post()
-        self.assertEqual(
-            MpesaManualPayment.objects.filter(receipt_code="SLK7X2M9AB").count(),
-            1,
-            "Duplicate receipt code must not create a second payment record.",
+    def test_two_codes_full_payment(self):
+        from sales.models import Sale, MpesaPayment, MpesaPaymentAllocation
+        response = self._post_mpesa(codes=[
+            {"code": "SLK7X2M9AB", "amount": "60.00"},
+            {"code": "QRP4N8K2CD", "amount": "40.00"},
+        ])
+        self.assertEqual(response.status_code, 302, response.content[:400])
+        self.assertEqual(MpesaPayment.objects.count(), 2)
+        # both should be allocated to the sale
+        self.assertEqual(MpesaPaymentAllocation.objects.count(), 2)
+        sale = Sale.objects.latest("id")
+        self.assertTrue(sale.completed)
+
+    def test_split_mpesa_and_cash(self):
+        from sales.models import Sale, MpesaPayment
+        response = self._post_mpesa(
+            codes=[{"code": "SPLIT1234", "amount": "60.00"}],
+            cash="40.00",
         )
+        self.assertEqual(response.status_code, 302, response.content[:400])
+        sale = Sale.objects.latest("id")
+        self.assertTrue(sale.completed)
+        self.assertEqual(sale.amount_tendered, 100)
+        self.assertEqual(sale.change_due, 0)
 
-    def test_receipt_code_uppercased(self):
-        from sales.models import MpesaManualPayment
-        self._post(mpesa_receipt_code="slk7x2m9ab")
-        self.assertTrue(
-            MpesaManualPayment.objects.filter(receipt_code="SLK7X2M9AB").exists(),
-            "Receipt code should be normalised to upper case.",
+    def test_cash_over_tender_with_partial_mpesa_gives_change(self):
+        from sales.models import Sale
+        response = self._post_mpesa(
+            codes=[{"code": "PART123456", "amount": "60.00"}],
+            cash="100.00",
         )
+        self.assertEqual(response.status_code, 302, response.content[:400])
+        sale = Sale.objects.latest("id")
+        # total paid = 60 + 100 = 160, sale = 100, change = 60
+        self.assertEqual(sale.change_due, 60)
 
-    def test_missing_receipt_code_rejected(self):
-        from sales.models import MpesaManualPayment
-        self._post(mpesa_receipt_code="")
-        self.assertEqual(MpesaManualPayment.objects.count(), 0)
+    # -----------------------------------------------------------------------
+    # Rejections
+    # -----------------------------------------------------------------------
+    def test_mpesa_exceeds_total_rejected(self):
+        from sales.models import MpesaPayment
+        response = self._post_mpesa(
+            codes=[{"code": "OVER123456", "amount": "200.00"}]
+        )
+        self.assertEqual(response.status_code, 200)   # re-rendered
+        self.assertEqual(MpesaPayment.objects.count(), 0)
 
-    def test_amount_paid_less_than_total_rejected(self):
-        from sales.models import MpesaManualPayment
-        self._post(mpesa_amount_paid="50.00")
-        self.assertEqual(MpesaManualPayment.objects.count(), 0)
+    def test_mpesa_equals_total_with_cash_rejected(self):
+        from sales.models import MpesaPayment
+        response = self._post_mpesa(
+            codes=[{"code": "FULLCOVER1", "amount": "100.00"}],
+            cash="50.00",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MpesaPayment.objects.count(), 0)
 
+    def test_underpaid_rejected(self):
+        from sales.models import MpesaPayment
+        response = self._post_mpesa(
+            codes=[{"code": "UNDER12345", "amount": "60.00"}],
+            cash="20.00",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MpesaPayment.objects.count(), 0)
+
+    def test_duplicate_code_in_same_submission_rejected(self):
+        from sales.models import MpesaPayment
+        response = self._post_mpesa(codes=[
+            {"code": "DUPE123456", "amount": "50.00"},
+            {"code": "DUPE123456", "amount": "50.00"},
+        ])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MpesaPayment.objects.count(), 0)
+
+    def test_duplicate_code_across_sales_rejected(self):
+        from sales.models import MpesaPayment
+        # First sale uses the code
+        r1 = self._post_mpesa(codes=[{"code": "REUSE12345", "amount": "100.00"}])
+        self.assertEqual(r1.status_code, 302)
+        self.assertEqual(MpesaPayment.objects.count(), 1)
+        # Second sale attempts the same code
+        r2 = self._post_mpesa(codes=[{"code": "REUSE12345", "amount": "100.00"}])
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(MpesaPayment.objects.count(), 1)  # no new row
+
+    def test_missing_codes_rejected(self):
+        from sales.models import MpesaPayment
+        response = self._post_mpesa(codes=[])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MpesaPayment.objects.count(), 0)
+
+    def test_zero_amount_rejected(self):
+        from sales.models import MpesaPayment
+        response = self._post_mpesa(codes=[
+            {"code": "ZERO123456", "amount": "0.00"},
+        ])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MpesaPayment.objects.count(), 0)
+
+    def test_invalid_code_format_rejected(self):
+        from sales.models import MpesaPayment
+        response = self._post_mpesa(codes=[
+            {"code": "abc", "amount": "100.00"},
+        ])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MpesaPayment.objects.count(), 0)
+
+    # -----------------------------------------------------------------------
+    # Batch: one code covers N sales
+    # -----------------------------------------------------------------------
+    def test_batch_code_covers_primary_and_held_sale(self):
+        from sales.models import Sale, MpesaPayment, MpesaPaymentAllocation
+        held = self._hold_sale()  # KES 100
+        # Primary sale is also KES 100 (1 unit of KES 100 product)
+        response = self._post_mpesa(
+            codes=[{"code": "BATCH12345", "amount": "200.00"}],
+            batch_ids=[held.pk],
+        )
+        self.assertEqual(response.status_code, 302, response.content[:400])
+        self.assertEqual(MpesaPayment.objects.count(), 1)
+        self.assertEqual(MpesaPaymentAllocation.objects.count(), 2)
+        held.refresh_from_db()
+        self.assertTrue(held.completed)
+        self.assertEqual(held.payment_status, "PAID")
+
+    def test_batch_amount_mismatch_rejected(self):
+        from sales.models import MpesaPayment
+        held = self._hold_sale()
+        # held = 100, primary = 100 → expected 200. Try 150.
+        response = self._post_mpesa(
+            codes=[{"code": "BATCHBAD01", "amount": "150.00"}],
+            batch_ids=[held.pk],
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MpesaPayment.objects.count(), 0)
+
+    def test_batch_with_cash_rejected(self):
+        from sales.models import MpesaPayment
+        held = self._hold_sale()
+        response = self._post_mpesa(
+            codes=[{"code": "BATCHCASH1", "amount": "200.00"}],
+            batch_ids=[held.pk],
+            cash="50.00",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(MpesaPayment.objects.count(), 0)
+
+    def test_batch_redirect_to_batch_receipt(self):
+        from django.urls import reverse
+        held = self._hold_sale()
+        response = self._post_mpesa(
+            codes=[{"code": "BATCHREDIR", "amount": "200.00"}],
+            batch_ids=[held.pk],
+        )
+        self.assertEqual(response.status_code, 302)
+        # Redirect should be to batch_receipt URL
+        self.assertIn("/sales/batch-receipt/", response.url)
+
+    # -----------------------------------------------------------------------
+    # Receipt / API
+    # -----------------------------------------------------------------------
+    def test_batch_receipt_renders(self):
+        from sales.models import MpesaPayment
+        held = self._hold_sale()
+        self._post_mpesa(
+            codes=[{"code": "RECEIPT111", "amount": "200.00"}],
+            batch_ids=[held.pk],
+        )
+        payment = MpesaPayment.objects.latest("id")
+        from django.urls import reverse
+        response = self.client.get(reverse("sales:batch_receipt", args=[payment.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "RECEIPT111")
+        self.assertContains(response, "Batch Receipt")
+
+    def test_api_open_sales_returns_pending_sales(self):
+        import json
+        from django.urls import reverse
+        held = self._hold_sale()
+        response = self.client.get(reverse("sales:api_open_sales"))
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.content)
+        ids = [row["id"] for row in data]
+        self.assertIn(held.pk, ids)
+
+    def test_api_open_sales_requires_login(self):
+        from django.urls import reverse
+        self.client.logout()
+        response = self.client.get(reverse("sales:api_open_sales"))
+        # Either 403 or redirect to login
+        self.assertIn(response.status_code, (302, 403))

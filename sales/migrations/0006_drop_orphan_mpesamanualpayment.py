@@ -9,8 +9,10 @@ class Migration(migrations.Migration):
     the Phase B -> v2 refactor, but the table was left behind because no
     migration explicitly deleted it. This migration cleans it up.
 
-    DROP TABLE IF EXISTS makes this idempotent (safe on fresh installs
-    where the table was never created).
+    DROP TABLE IF EXISTS is portable across SQLite, PostgreSQL and MySQL.
+    We do NOT use CASCADE because:
+      - SQLite rejects it (syntax error)
+      - no other table references this one, so CASCADE is unnecessary
     """
 
     dependencies = [
@@ -19,7 +21,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RunSQL(
-            sql="DROP TABLE IF EXISTS sales_mpesamanualpayment CASCADE;",
+            sql="DROP TABLE IF EXISTS sales_mpesamanualpayment;",
             reverse_sql=migrations.RunSQL.noop,
         ),
     ]
