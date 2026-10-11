@@ -397,17 +397,33 @@ _mpesa_logger = _logging.getLogger(__name__)
 
 @login_required
 def mpesa_pay(request, sale_id):
-    """Cashier submits customer phone. Creates STK push, redirects to wait page."""
+    """
+    Initiate an STK push for a sale.
+
+    - GET: the phone was captured by the POS form and stored on the sale.
+           We initiate the push using that saved phone number.
+    - POST: legacy path (form resubmits phone_number directly).
+    """
     require_active_user(request.user)
     sale = get_object_or_404(Sale, pk=sale_id, completed=False)
 
     if not is_director(request.user) and sale.cashier_id != request.user.pk:
         raise PermissionDenied("You cannot pay for another cashier's sale.")
 
-    if request.method != "POST":
-        return redirect("sales:pos")
+    if request.method == "POST":
+        phone = (request.POST.get("phone_number") or "").strip()
+        if phone:
+            sale.customer_phone = phone
+            sale.save(update_fields=["customer_phone"])
+    else:
+        phone = (sale.customer_phone or "").strip()
 
-    phone = (request.POST.get("phone_number") or "").strip()
+    if not phone:
+        messages.error(
+            request,
+            "No M-Pesa phone number was captured for this sale.",
+        )
+        return redirect("sales:pos")
 
     try:
         initiate_stk_push(sale=sale, phone_number=phone)

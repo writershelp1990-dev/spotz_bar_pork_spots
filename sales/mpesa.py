@@ -193,9 +193,11 @@ def _schedule_mock_callback(mpesa_pk: int):
             "result_description", "raw_callback", "updated_at",
         ])
 
+        # Mirror what the real Daraja callback does: complete the sale.
         sale = mpesa.sale
         sale.payment_status = Sale.PaymentStatus.PAID
-        sale.save(update_fields=["payment_status"])
+        sale.completed = True
+        sale.save(update_fields=["completed", "payment_status"])
 
         try:
             connection.close()

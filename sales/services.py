@@ -161,13 +161,22 @@ def checkout(*, user, operating_point, payment_method, amount_tendered, items_js
     if payment_method not in Sale.PaymentMethod.values:
         raise ValidationError("Select a valid payment method.")
 
+    # STK-push M-Pesa is not confirmed until Daraja calls back.
+    # All other methods are paid at the point of sale.
+    initial_payment_status = (
+        Sale.PaymentStatus.PENDING
+        if payment_method == Sale.PaymentMethod.MPESA
+        else Sale.PaymentStatus.PAID
+    )
+
     sale = Sale.objects.create(
         sale_number="SP-" + timezone.localtime(now).strftime("%Y%m%d%H%M%S")
                     + "-" + uuid4().hex[:6].upper(),
         business_day=business_day, operating_point=operating_point,
         cashier=user, payment_method=payment_method,
         subtotal=subtotal, total=subtotal, amount_tendered=tendered,
-        change_due=(tendered-subtotal).quantize(CENT), completed=False
+        change_due=(tendered-subtotal).quantize(CENT), completed=False,
+        payment_status=initial_payment_status,
     )
 
     for product, qty, price, line_total in calculated:
