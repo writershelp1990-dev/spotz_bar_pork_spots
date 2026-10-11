@@ -1,3 +1,6 @@
+from decimal import Decimal, InvalidOperation
+import re
+import json
 from django import forms
 from catalog.models import Category, Product, ProductPriceHistory, UnitOfMeasure
 from accounts.models import OperatingPoint
@@ -139,37 +142,85 @@ class CheckoutForm(forms.Form):
     )
     items_json = forms.CharField(widget=forms.HiddenInput())
 
-    # --- Manual M-Pesa (customer already paid the till) ---
-    mpesa_receipt_code = forms.CharField(
-        max_length=40, required=False,
+    # --- Manual M-Pesa: JSON list of {code, amount} pairs ---
+    mpesa_codes_json = forms.CharField(
+        widget=forms.HiddenInput(), required=False,
     )
-    mpesa_amount_paid = forms.DecimalField(
+    mpesa_cash_amount = forms.DecimalField(
         min_value=0, max_digits=12, decimal_places=2, required=False,
     )
 
-    def clean(self):
-        cleaned = super().clean()
-        method = cleaned.get("payment_method")
+    # --- Batch: other open sales covered by the same code ---
+    batch_sale_ids_json = forms.CharField(
+        widget=forms.HiddenInput(), required=False,
+    )
 
-        if method == "MPESA_MANUAL":
-            code = (cleaned.get("mpesa_receipt_code") or "").strip().upper()
-            amount = cleaned.get("mpesa_amount_paid")
-
-            if not code:
-                self.add_error("mpesa_receipt_code",
-                               "M-Pesa receipt code is required.")
-            elif not (8 <= len(code) <= 12):
-                self.add_error("mpesa_receipt_code",
-                               "Receipt codes are typically 8-12 characters.")
-            else:
-                cleaned["mpesa_receipt_code"] = code
-
-            if amount is None:
-                self.add_error("mpesa_amount_paid",
-                               "Amount paid is required for manual M-Pesa.")
-
-        return cleaned
+    # --- Hold as unpaid ---
+    hold_as_unpaid = forms.BooleanField(required=False, widget=forms.HiddenInput())
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["operating_point"].queryset = OperatingPoint.objects.filter(is_active=True)
+        self.fields['operating_point'].queryset = OperatingPoint.objects.filter(is_active=True)
+
+    def clean(self):
+        cleaned = super().clean()
+        method = cleaned.get('payment_method')
+        if method == 'MPESA_MANUAL':
+            self._clean_manual_mpesa(cleaned)
+        return cleaned
+
+    def _clean_manual_mpesa(self, cleaned):
+        raw = (cleaned.get('mpesa_codes_json') or '').strip()
+        if not raw or raw == '[]':
+            self.add_error(None, 'Enter at least one M-Pesa receipt code.')
+            return
+        try:
+            rows = json.loads(raw)
+        except (ValueError, TypeError):
+            self.add_error(None, 'Invalid M-Pesa entries.')
+            return
+        if not isinstance(rows, list) or not rows:
+            self.add_error(None, 'Enter at least one M-Pesa receipt code.')
+            return
+        normalized = []
+        seen = set()
+        total = Decimal('0.00')
+        for i, row in enumerate(rows, start=1):
+            if not isinstance(row, dict):
+                self.add_error(None, f'Invalid M-Pesa row {i}.')
+                return
+            code = str(row.get('code') or '').strip().upper()
+            amount_raw = row.get('amount')
+            if not code:
+                self.add_error(None, f'M-Pesa code for row {i} is empty.')
+                return
+            if not re.match(r'^[A-Z0-9]{8,12}$', code):
+                self.add_error(None, f'Invalid M-Pesa code format: {code}')
+                return
+            if code in seen:
+                self.add_error(None, f'Duplicate M-Pesa code in this sale: {code}')
+                return
+            seen.add(code)
+            try:
+                amount = Decimal(str(amount_raw)).quantize(Decimal('0.01'))
+            except (InvalidOperation, TypeError, ValueError):
+                self.add_error(None, f'Invalid amount for M-Pesa code {code}.')
+                return
+            if amount <= 0:
+                self.add_error(None, f'Amount for M-Pesa code {code} must be greater than zero.')
+                return
+            normalized.append({'code': code, 'amount': amount})
+            total += amount
+        cleaned['mpesa_codes'] = normalized
+        cleaned['mpesa_total'] = total.quantize(Decimal('0.01'))
+        cash = cleaned.get('mpesa_cash_amount') or Decimal('0.00')
+        cleaned['mpesa_cash_amount'] = cash.quantize(Decimal('0.01'))
+        batch_raw = (cleaned.get('batch_sale_ids_json') or '').strip()
+        batch_ids = []
+        if batch_raw and batch_raw != '[]':
+            try:
+                batch_ids = [int(x) for x in json.loads(batch_raw)]
+            except (ValueError, TypeError):
+                self.add_error(None, 'Invalid batch sale selection.')
+                return
+        cleaned['batch_sale_ids'] = batch_ids

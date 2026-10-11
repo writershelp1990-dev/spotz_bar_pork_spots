@@ -238,9 +238,6 @@ class MpesaTransaction(models.Model):
     def __str__(self):
         return f"M-Pesa {self.phone_number} for {self.sale_id} [{self.status}]"
 
-# ===========================================================================
-# M-PESA — Manual (Customer-Paid)
-# ===========================================================================
 class MpesaManualPayment(models.Model):
     """
     A payment a customer made directly to the till (Paybill / Buy Goods).
@@ -275,3 +272,90 @@ class MpesaManualPayment(models.Model):
 
     def __str__(self):
         return f"{self.receipt_code} — KES {self.amount_paid} (sale {self.sale_id})"
+
+# ===========================================================================
+# M-PESA — Payments and Allocations
+# ===========================================================================
+class MpesaPayment(models.Model):
+    """
+    A single M-Pesa transaction.
+
+    One code = one row, globally unique across all sales.
+    A payment may be allocated across multiple sales (e.g. a customer
+    paying for the whole table), and each allocation records how much
+    of this code was applied to that specific sale.
+    """
+
+    receipt_code = models.CharField(
+        max_length=40,
+        unique=True,
+        db_index=True,
+        help_text="M-Pesa code from the customer SMS, e.g. SLK7X2M9AB.",
+    )
+    total_amount = models.DecimalField(
+        max_digits=12, decimal_places=2,
+        help_text="Total amount of this M-Pesa transaction.",
+    )
+    customer_phone = models.CharField(max_length=20, blank=True)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="recorded_mpesa_payments",
+    )
+    recorded_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-recorded_at"]
+
+    def __str__(self):
+        return f"{self.receipt_code} — KES {self.total_amount}"
+
+    @property
+    def allocated_amount(self):
+        """Sum of all allocations for this payment."""
+        from django.db.models import Sum
+        result = self.allocations.aggregate(total=Sum("amount"))["total"]
+        return result or Decimal("0.00")
+
+    @property
+    def unallocated_amount(self):
+        return self.total_amount - self.allocated_amount
+
+
+class MpesaPaymentAllocation(models.Model):
+    """
+    How much of a specific MpesaPayment was applied to a specific Sale.
+
+    A single payment can have many allocations (across sales), and a
+    single sale can have many allocations (from different payments).
+    """
+
+    payment = models.ForeignKey(
+        MpesaPayment,
+        on_delete=models.PROTECT,
+        related_name="allocations",
+    )
+    sale = models.ForeignKey(
+        "Sale",
+        on_delete=models.PROTECT,
+        related_name="mpesa_allocations",
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("payment", "sale")]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.payment.receipt_code} -> sale {self.sale_id}: KES {self.amount}"
+
+    def clean(self):
+        if self.amount is None or self.amount <= 0:
+            raise ValidationError("Allocation amount must be greater than zero.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
