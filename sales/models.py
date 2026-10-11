@@ -240,40 +240,6 @@ class MpesaTransaction(models.Model):
     def __str__(self):
         return f"M-Pesa {self.phone_number} for {self.sale_id} [{self.status}]"
 
-class MpesaManualPayment(models.Model):
-    """
-    A payment a customer made directly to the till (Paybill / Buy Goods).
-
-    The cashier records the M-Pesa receipt code from the customer SMS and
-    the amount they paid. A UNIQUE constraint on receipt_code prevents
-    the same M-Pesa transaction from being recorded twice.
-    """
-
-    sale = models.ForeignKey(
-        Sale,
-        on_delete=models.PROTECT,
-        related_name="mpesa_manual_payments",
-    )
-    receipt_code = models.CharField(
-        max_length=40,
-        unique=True,
-        help_text="M-Pesa code from the customer SMS, e.g. SLK7X2M9AB.",
-    )
-    amount_paid = models.DecimalField(max_digits=12, decimal_places=2)
-    customer_phone = models.CharField(max_length=20, blank=True)
-    recorded_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="recorded_manual_mpesa",
-    )
-    recorded_at = models.DateTimeField(auto_now_add=True)
-    notes = models.TextField(blank=True)
-
-    class Meta:
-        ordering = ["-recorded_at"]
-
-    def __str__(self):
-        return f"{self.receipt_code} — KES {self.amount_paid} (sale {self.sale_id})"
 
 # ===========================================================================
 # M-PESA — Payments and Allocations

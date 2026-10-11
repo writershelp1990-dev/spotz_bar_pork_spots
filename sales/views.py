@@ -64,42 +64,47 @@ def pos(request):
 
     if request.method == "POST" and form.is_valid():
         try:
-            sale = checkout(
-                user=request.user,
-                operating_point=form.cleaned_data["operating_point"],
-                payment_method=form.cleaned_data["payment_method"],
-                amount_tendered=form.cleaned_data["amount_tendered"],
-                items_json=form.cleaned_data["items_json"],
-            )
-
-            # M-Pesa: redirect to the STK-push screen instead of completing
-            # ---- Manual M-Pesa (one or more codes, possibly batch) ----
-            if sale.payment_method == Sale.PaymentMethod.MPESA_MANUAL:
-                primary_payment = _complete_manual_mpesa_sale(
-                    sale=sale,
-                    form=form,
-                    request=request,
+            # Wrap the entire commit sequence in one transaction so that
+            # any failure in the M-Pesa step rolls back the sale creation
+            # (no orphaned sales or deducted stock).
+            with transaction.atomic():
+                sale = checkout(
+                    user=request.user,
+                    operating_point=form.cleaned_data["operating_point"],
+                    payment_method=form.cleaned_data["payment_method"],
+                    amount_tendered=form.cleaned_data["amount_tendered"],
+                    items_json=form.cleaned_data["items_json"],
                 )
-                # If batch (multiple sales covered), show batch receipt.
-                if primary_payment and primary_payment.allocations.count() > 1:
-                    return redirect("sales:batch_receipt", payment_id=primary_payment.pk)
+
+                # M-Pesa: redirect to the STK-push screen instead of completing
+                # ---- Manual M-Pesa (one or more codes, possibly batch) ----
+                if sale.payment_method == Sale.PaymentMethod.MPESA_MANUAL:
+                    primary_payment = _complete_manual_mpesa_sale(
+                        sale=sale,
+                        form=form,
+                        request=request,
+                    )
+                    # If batch (multiple sales covered), show batch receipt.
+                    if primary_payment and primary_payment.allocations.count() > 1:
+                        return redirect("sales:batch_receipt", payment_id=primary_payment.pk)
+                    return redirect("sales:receipt", sale_id=sale.pk)
+
+                if sale.payment_method == Sale.PaymentMethod.MPESA:
+                    sale.customer_phone = (request.POST.get("phone_number") or "").strip()
+                    sale.save(update_fields=["customer_phone"])
+                    return redirect("sales:mpesa_pay", sale_id=sale.pk)
+
+                # Cash: complete immediately
+                sale.completed = True
+                sale.payment_status = Sale.PaymentStatus.PAID
+                sale.save(update_fields=["completed", "payment_status"])
+                messages.success(
+                    request,
+                    f"Sale {sale.sale_number} completed. "
+                    f"Total KES {sale.total}; change KES {sale.change_due}.",
+                )
                 return redirect("sales:receipt", sale_id=sale.pk)
 
-            if sale.payment_method == Sale.PaymentMethod.MPESA:
-                sale.customer_phone = (request.POST.get("phone_number") or "").strip()
-                sale.save(update_fields=["customer_phone"])
-                return redirect("sales:mpesa_pay", sale_id=sale.pk)
-
-            # Cash: complete immediately
-            sale.completed = True
-            sale.payment_status = Sale.PaymentStatus.PAID
-            sale.save(update_fields=["completed", "payment_status"])
-            messages.success(
-                request,
-                f"Sale {sale.sale_number} completed. "
-                f"Total KES {sale.total}; change KES {sale.change_due}.",
-            )
-            return redirect("sales:receipt", sale_id=sale.pk)
 
         except (ValidationError, PermissionDenied) as exc:
             form.add_error(None, getattr(exc, "message", str(exc)))
