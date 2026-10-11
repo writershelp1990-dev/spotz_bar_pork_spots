@@ -75,11 +75,14 @@ def pos(request):
             # M-Pesa: redirect to the STK-push screen instead of completing
             # ---- Manual M-Pesa (one or more codes, possibly batch) ----
             if sale.payment_method == Sale.PaymentMethod.MPESA_MANUAL:
-                _complete_manual_mpesa_sale(
+                primary_payment = _complete_manual_mpesa_sale(
                     sale=sale,
                     form=form,
                     request=request,
                 )
+                # If batch (multiple sales covered), show batch receipt.
+                if primary_payment and primary_payment.allocations.count() > 1:
+                    return redirect("sales:batch_receipt", payment_id=primary_payment.pk)
                 return redirect("sales:receipt", sale_id=sale.pk)
 
             if sale.payment_method == Sale.PaymentMethod.MPESA:
@@ -612,6 +615,8 @@ def _complete_manual_mpesa_sale(*, sale, form, request):
     allocations_by_sale = {s.pk: [] for s in all_target_sales}
     remaining_per_sale = {s.pk: s.total for s in all_target_sales}
 
+    primary_payment = None
+
     for entry in codes:
         payment = MpesaPayment.objects.create(
             receipt_code=entry["code"],
@@ -619,6 +624,8 @@ def _complete_manual_mpesa_sale(*, sale, form, request):
             customer_phone="",
             recorded_by=request.user,
         )
+        if primary_payment is None:
+            primary_payment = payment
 
         remaining_code = entry["amount"]
         for target in all_target_sales:
@@ -667,4 +674,67 @@ def _complete_manual_mpesa_sale(*, sale, form, request):
             "completed", "payment_status", "amount_tendered", "change_due",
         ])
 
-    return sale
+    return primary_payment
+
+# ===========================================================================
+# Open sales API + batch receipt
+# ===========================================================================
+def api_open_sales(request):
+    """JSON list of recent unpaid sales for the current cashier."""
+    from django.utils import timezone
+    from datetime import timedelta
+
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "auth required"}, status=403)
+
+    cutoff = timezone.now() - timedelta(minutes=30)
+    sales = (
+        Sale.objects
+        .filter(
+            cashier=request.user,
+            completed=False,
+            payment_status=Sale.PaymentStatus.PENDING,
+            sold_at__gte=cutoff,
+        )
+        .order_by("sold_at")
+    )
+
+    return JsonResponse([
+        {
+            "id": s.pk,
+            "sale_number": s.sale_number,
+            "total": str(s.total),
+            "sold_at": s.sold_at.isoformat(),
+        }
+        for s in sales
+    ], safe=False)
+
+
+@login_required
+def batch_receipt(request, payment_id):
+    """Show all sales covered by a single M-Pesa payment."""
+    require_active_user(request.user)
+    payment = get_object_or_404(MpesaPayment, pk=payment_id)
+
+    allocations = list(
+        payment.allocations
+        .select_related('sale', 'sale__cashier', 'sale__operating_point')
+        .order_by("sale__sold_at")
+    )
+    if not allocations:
+        messages.error(request, "This payment has no allocations.")
+        return redirect("sales:pos")
+
+    # Cashier restriction: only the cashier of the first sale or a director
+    first_sale = allocations[0].sale
+    if not is_director(request.user) and first_sale.cashier_id != request.user.pk:
+        raise PermissionDenied("You cannot view another cashier's payment.")
+
+    total_paid = sum((a.amount for a in allocations), start=0)
+
+    return render(request, "sales/batch_receipt.html", {
+        "payment": payment,
+        "allocations": allocations,
+        "total_paid": total_paid,
+    })
+

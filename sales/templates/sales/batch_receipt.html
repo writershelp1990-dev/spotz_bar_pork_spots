@@ -1,0 +1,51 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+<h1>M-Pesa Batch Receipt</h1>
+
+<p>
+  <strong>M-Pesa Code:</strong> {{ payment.receipt_code }}<br>
+  <strong>Amount Received:</strong> KES {{ payment.total_amount }}<br>
+  <strong>Recorded By:</strong> {{ payment.recorded_by }}<br>
+  <strong>Date:</strong> {{ payment.recorded_at }}
+</p>
+
+<h2>Sales Covered ({{ allocations|length }})</h2>
+
+<table style="width:100%; border-collapse:collapse;">
+  <thead>
+    <tr style="border-bottom:2px solid #e5e7eb;">
+      <th style="text-align:left; padding:0.5rem;">Sale #</th>
+      <th style="text-align:left; padding:0.5rem;">Date &amp; Time</th>
+      <th style="text-align:left; padding:0.5rem;">Operating Point</th>
+      <th style="text-align:right; padding:0.5rem;">Sale Total (KES)</th>
+      <th style="text-align:right; padding:0.5rem;">Paid from this code (KES)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for a in allocations %}
+    <tr style="border-bottom:1px solid #f1f5f9;">
+      <td style="padding:0.5rem;">{{ a.sale.sale_number }}</td>
+      <td style="padding:0.5rem;">{{ a.sale.sold_at }}</td>
+      <td style="padding:0.5rem;">{{ a.sale.operating_point.name }}</td>
+      <td style="padding:0.5rem; text-align:right;">{{ a.sale.total }}</td>
+      <td style="padding:0.5rem; text-align:right;">{{ a.amount }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr style="border-top:2px solid #e5e7eb; font-weight:700;">
+      <td colspan="4" style="padding:0.5rem; text-align:right;">Total Paid:</td>
+      <td style="padding:0.5rem; text-align:right;">KES {{ total_paid }}</td>
+    </tr>
+  </tfoot>
+</table>
+
+<p style="margin-top:1.5rem;">
+  <a href="{% url 'sales:pos' %}">Back to POS</a> |
+  <a href="{% url 'sales:history' %}">Sales History</a>
+</p>
+
+<button onclick="window.print()" style="margin-top:1rem; padding:0.75rem 1.5rem;">
+  Print Batch Receipt
+</button>
+{% endblock %}

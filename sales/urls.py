@@ -21,4 +21,10 @@ urlpatterns = [
     path("mpesa/wait/<int:sale_id>/", views.mpesa_wait, name="mpesa_wait"),
     path("mpesa/status/<int:sale_id>/", views.mpesa_status, name="mpesa_status"),
     path("mpesa/callback/", views.mpesa_callback, name="mpesa_callback"),
+
+    # ---- Open sales (unpaid held sales) ----
+    path("api/open-sales/", views.api_open_sales, name="api_open_sales"),
+
+    # ---- Batch receipt ----
+    path("batch-receipt/<int:payment_id>/", views.batch_receipt, name="batch_receipt"),
 ]
