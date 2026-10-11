@@ -1,3 +1,5 @@
+from django.db import transaction
+from decimal import Decimal, InvalidOperation
 from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 from django.http import JsonResponse
@@ -13,7 +15,13 @@ from audit.services import record_audit
 from catalog.models import Category, Product, ProductPriceHistory, UnitOfMeasure
 from accounts.models import OperatingPoint
 from .forms import CategoryForm, UnitForm, ProductForm, SellingPriceForm, ReceiptForm, CheckoutForm
-from .models import Sale, StockBalance, StockLedger
+from .models import (
+    Sale,
+    StockBalance,
+    StockLedger,
+    MpesaPayment,
+    MpesaPaymentAllocation,
+)
 from .mpesa import (
     initiate_stk_push,
     parse_callback_payload,
@@ -65,36 +73,12 @@ def pos(request):
             )
 
             # M-Pesa: redirect to the STK-push screen instead of completing
-            # ---- Manual M-Pesa (customer already paid the till) ----
+            # ---- Manual M-Pesa (one or more codes, possibly batch) ----
             if sale.payment_method == Sale.PaymentMethod.MPESA_MANUAL:
-                from .models import MpesaManualPayment
-
-                code = (form.cleaned_data.get("mpesa_receipt_code") or "").strip().upper()
-                amount = form.cleaned_data.get("mpesa_amount_paid")
-
-                if MpesaManualPayment.objects.filter(receipt_code=code).exists():
-                    raise ValidationError(
-                        f"M-Pesa receipt {code} has already been recorded."
-                    )
-                if amount is None or amount < sale.total:
-                    raise ValidationError(
-                        f"Amount paid (KES {amount}) is less than the sale total (KES {sale.total})."
-                    )
-
-                MpesaManualPayment.objects.create(
+                _complete_manual_mpesa_sale(
                     sale=sale,
-                    receipt_code=code,
-                    amount_paid=amount,
-                    customer_phone=(request.POST.get("phone_number") or "").strip(),
-                    recorded_by=request.user,
-                )
-
-                sale.completed = True
-                sale.payment_status = Sale.PaymentStatus.PAID
-                sale.save(update_fields=["completed", "payment_status"])
-                messages.success(
-                    request,
-                    f"Sale {sale.sale_number} recorded via manual M-Pesa. Receipt: {code}.",
+                    form=form,
+                    request=request,
                 )
                 return redirect("sales:receipt", sale_id=sale.pk)
 
@@ -528,3 +512,159 @@ def mpesa_callback(request):
 
     return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
 
+
+# ===========================================================================
+# Manual M-Pesa payment helper
+# ===========================================================================
+def _complete_manual_mpesa_sale(*, sale, form, request):
+    """
+    Apply one or more M-Pesa codes to a sale (and optionally to other open
+    sales selected as a batch). Enforces all fraud-prevention rules:
+
+      R1: sum(M-Pesa codes) <= primary sale total
+      R2: sum(M-Pesa) + cash >= sale total
+      R3: change only from cash
+      R4: if M-Pesa == total, cash must be 0
+      R5: code globally unique
+      R6: no duplicate code within the same submission
+      R7: batch payments must be fully M-Pesa
+      R8: batch codes must cover the primary + batch total exactly
+    """
+    from decimal import Decimal as D
+    from django.utils import timezone
+
+    codes = form.cleaned_data.get("mpesa_codes") or []
+    mpesa_total = form.cleaned_data.get("mpesa_total") or D("0.00")
+    cash_amount = form.cleaned_data.get("mpesa_cash_amount") or D("0.00")
+    batch_ids = form.cleaned_data.get("batch_sale_ids") or []
+
+    # ---- Load any batch sales (same cashier, recent, still pending) ----
+    batch_sales = []
+    if batch_ids:
+        cutoff = timezone.now() - timezone.timedelta(minutes=30)
+        batch_sales = list(
+            Sale.objects
+            .select_for_update()
+            .filter(
+                pk__in=batch_ids,
+                cashier=request.user,
+                completed=False,
+                payment_status=Sale.PaymentStatus.PENDING,
+                sold_at__gte=cutoff,
+            )
+        )
+        if len(batch_sales) != len(set(batch_ids)):
+            raise ValidationError(
+                "One or more selected batch sales are no longer available."
+            )
+        if sale.pk in {s.pk for s in batch_sales}:
+            batch_sales = [s for s in batch_sales if s.pk != sale.pk]
+
+    # ---- R7: batch must be fully M-Pesa (no cash) ----
+    if batch_sales and cash_amount > 0:
+        raise ValidationError(
+            "Batch payments cannot include a cash component. "
+            "Pay in full via M-Pesa or handle each sale individually."
+        )
+
+    # ---- R1: M-Pesa total <= primary sale total (when not a batch) ----
+    if not batch_sales and mpesa_total > sale.total:
+        raise ValidationError(
+            f"Total M-Pesa (KES {mpesa_total}) cannot exceed the sale total "
+            f"(KES {sale.total}). Refunding M-Pesa as cash is not permitted."
+        )
+
+    # ---- R4: if M-Pesa == total and not batch, cash must be 0 ----
+    if not batch_sales and mpesa_total == sale.total and cash_amount > 0:
+        raise ValidationError(
+            f"M-Pesa already covers the full sale total of KES {sale.total}. "
+            "No cash payment is needed for this sale."
+        )
+
+    # ---- R2: total paid (M-Pesa + cash) >= sale total (when not a batch) ----
+    total_paid = mpesa_total + cash_amount
+    if not batch_sales and total_paid < sale.total:
+        remaining = (sale.total - total_paid).quantize(D("0.01"))
+        raise ValidationError(
+            f"Total paid (KES {total_paid}) is less than the sale total "
+            f"(KES {sale.total}). Remaining: KES {remaining}."
+        )
+
+    # ---- R8: batch total must match M-Pesa total exactly ----
+    if batch_sales:
+        batch_total = sum((s.total for s in batch_sales), D("0.00"))
+        expected = (sale.total + batch_total).quantize(D("0.01"))
+        if mpesa_total != expected:
+            raise ValidationError(
+                f"M-Pesa total (KES {mpesa_total}) does not match the sum "
+                f"of the selected sales (KES {expected})."
+            )
+
+    # ---- R5: each code must be globally unique ----
+    for entry in codes:
+        if MpesaPayment.objects.filter(receipt_code=entry["code"]).exists():
+            raise ValidationError(
+                f"M-Pesa receipt {entry['code']} has already been recorded."
+            )
+
+    # ---- Create MpesaPayment rows and allocate to target sales ----
+    all_target_sales = [sale] + batch_sales
+    allocations_by_sale = {s.pk: [] for s in all_target_sales}
+    remaining_per_sale = {s.pk: s.total for s in all_target_sales}
+
+    for entry in codes:
+        payment = MpesaPayment.objects.create(
+            receipt_code=entry["code"],
+            total_amount=entry["amount"],
+            customer_phone="",
+            recorded_by=request.user,
+        )
+
+        remaining_code = entry["amount"]
+        for target in all_target_sales:
+            if remaining_code <= 0:
+                break
+            take = min(remaining_code, remaining_per_sale[target.pk])
+            if take <= 0:
+                continue
+            MpesaPaymentAllocation.objects.create(
+                payment=payment,
+                sale=target,
+                amount=take.quantize(D("0.01")),
+            )
+            allocations_by_sale[target.pk].append(take)
+            remaining_per_sale[target.pk] = (
+                remaining_per_sale[target.pk] - take
+            ).quantize(D("0.01"))
+            remaining_code = (remaining_code - take).quantize(D("0.01"))
+
+    # ---- Compute change for the primary sale ----
+    primary_allocated = sum(allocations_by_sale[sale.pk], D("0.00"))
+    cash_needed = max(
+        D("0.00"), (sale.total - primary_allocated).quantize(D("0.01"))
+    )
+    change_due = max(
+        D("0.00"), (cash_amount - cash_needed).quantize(D("0.01"))
+    )
+
+    # ---- Complete the primary sale ----
+    sale.amount_tendered = (primary_allocated + cash_amount).quantize(D("0.01"))
+    sale.change_due = change_due
+    sale.completed = True
+    sale.payment_status = Sale.PaymentStatus.PAID
+    sale.save(update_fields=[
+        "completed", "payment_status", "amount_tendered", "change_due",
+    ])
+
+    # ---- Complete the batch sales (fully M-Pesa) ----
+    for target in batch_sales:
+        target_allocated = sum(allocations_by_sale[target.pk], D("0.00"))
+        target.amount_tendered = target_allocated
+        target.change_due = D("0.00")
+        target.completed = True
+        target.payment_status = Sale.PaymentStatus.PAID
+        target.save(update_fields=[
+            "completed", "payment_status", "amount_tendered", "change_due",
+        ])
+
+    return sale

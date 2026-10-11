@@ -82,6 +82,8 @@ class Sale(models.Model):
                 "completed",
                 "payment_status",
                 "customer_phone",
+                "amount_tendered",
+                "change_due",
             }
 
             if not set(update_fields).issubset(allowed):
