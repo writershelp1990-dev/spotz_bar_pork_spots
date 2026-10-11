@@ -24,16 +24,19 @@
 {% if sale.payment_method == "MPESA_MANUAL" %}
   <p>
     <strong>M-Pesa (Customer-Paid):</strong>
-    {% with latest=sale.mpesa_manual_payments.first %}
-      {% if latest %}
-        Receipt: <strong>{{ latest.receipt_code }}</strong>
-        &nbsp;|&nbsp; Amount Paid: KES {{ latest.amount_paid }}
-        {% if latest.customer_phone %}&nbsp;|&nbsp; Phone: {{ latest.customer_phone }}{% endif %}
-      {% else %}
-        <em>No payment record found.</em>
-      {% endif %}
-    {% endwith %}
   </p>
+  {% if sale.mpesa_allocations.exists %}
+    <ul style="margin:0.25rem 0 0 1rem; padding:0;">
+      {% for a in sale.mpesa_allocations.all %}
+        <li>
+          Code: <strong>{{ a.payment.receipt_code }}</strong>
+          &nbsp;|&nbsp; Amount: KES {{ a.amount }}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <em>No payment record found.</em>
+  {% endif %}
 {% endif %}
 
 <table>

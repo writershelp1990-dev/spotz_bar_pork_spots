@@ -15,7 +15,6 @@
 
 <form method="post" id="checkout-form">
   {% csrf_token %}
-  {{ form.operating_point }}
 
   <p>{{ form.operating_point.label_tag }} {{ form.operating_point }}</p>
 
@@ -57,13 +56,9 @@
   </div>
 </form>
 
-<!-- ============================================================ -->
-<!-- M-Pesa Customer-Paid Modal                                    -->
-<!-- ============================================================ -->
 <div id="mpesa-modal-backdrop"
      style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-  <div id="mpesa-modal"
-       style="background:#fff; border-radius:0.75rem; max-width:720px; width:92%; max-height:90vh; overflow-y:auto; padding:1.5rem; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+  <div style="background:#fff; border-radius:0.75rem; max-width:720px; width:92%; max-height:90vh; overflow-y:auto; padding:1.5rem; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
 
     <h2 style="margin-top:0;">M-Pesa Payment Confirmation</h2>
     <p style="color:#555;">
@@ -86,9 +81,7 @@
           <th style="text-align:center; padding:0.5rem;"></th>
         </tr>
       </thead>
-      <tbody id="mpesa-codes-body">
-        <!-- rows injected by JS -->
-      </tbody>
+      <tbody id="mpesa-codes-body"></tbody>
     </table>
 
     <p style="margin-top:0.75rem;">
@@ -102,8 +95,8 @@
       <p style="margin:0;">
         <strong>Total M-Pesa:</strong> KES <span id="mpesa-total">0.00</span>
       </p>
-      <p id="mpesa-remaining-line" style="margin:0.5rem 0 0 0;">
-        <strong>Remaining to pay by cash:</strong> KES <span id="mpesa-remaining">0.00</span>
+      <p style="margin:0.5rem 0 0 0;">
+        <strong>Remaining for cash:</strong> KES <span id="mpesa-remaining">0.00</span>
       </p>
     </div>
 
@@ -117,9 +110,7 @@
       <p style="margin:0 0 0.5rem 0; font-weight:600;">
         This code covers more than this sale. Select open sales it should also pay:
       </p>
-      <div id="open-sales-list" style="max-height:180px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:0.5rem; padding:0.5rem;">
-        <!-- checkboxes injected by JS -->
-      </div>
+      <div id="open-sales-list" style="max-height:180px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:0.5rem; padding:0.5rem;"></div>
     </div>
 
     <div id="modal-summary" style="margin-top:1rem; font-size:0.95rem;"></div>
@@ -168,15 +159,11 @@
   const confirmBtn = document.getElementById("mpesa-confirm");
   const cancelBtn = document.getElementById("mpesa-cancel");
   const form = document.getElementById("checkout-form");
-  const submitComplete = document.getElementById("submit-complete");
-  const submitHold = document.getElementById("submit-hold");
 
   let submitting = false;
   let openSalesCache = null;
 
-  // ---------------------------------------------------------------
-  // Cart logic (unchanged)
-  // ---------------------------------------------------------------
+  // ---------- Cart ----------
   function refresh() {
     let total = 0, items = [];
     tbody.querySelectorAll("tr").forEach(row => {
@@ -229,9 +216,6 @@
   }
   document.getElementById("add-row").addEventListener("click", addCartRow);
 
-  // ---------------------------------------------------------------
-  // Cash change hint
-  // ---------------------------------------------------------------
   function updateChangeHint() {
     const total = Number(subtotalEl.textContent) || 0;
     const tendered = Number(amountInput ? amountInput.value : 0) || 0;
@@ -250,37 +234,17 @@
   }
   if (amountInput) amountInput.addEventListener("input", updateChangeHint);
 
-  // ---------------------------------------------------------------
-  // Payment method toggle
-  // ---------------------------------------------------------------
-  function updatePaymentUI() {
-    const method = paymentSelect ? paymentSelect.value : "";
-    if (method !== "MPESA_MANUAL") {
-      closeModal();
-    }
-  }
-  if (paymentSelect) paymentSelect.addEventListener("change", updatePaymentUI);
-
-  // ---------------------------------------------------------------
-  // Intercept form submit
-  // ---------------------------------------------------------------
+  // ---------- Form submit interception ----------
   form.addEventListener("submit", function (e) {
     if (submitting) return;
-
-    // Prevent double-submit during modal flow
-    if (paymentSelect.value === "MPESA_MANUAL" && !submitting) {
-      // Check if the modal is already open
-      if (modalBackdrop.style.display === "none") {
-        e.preventDefault();
-        openModal();
-        return;
-      }
+    if (paymentSelect.value === "MPESA_MANUAL" && modalBackdrop.style.display === "none") {
+      e.preventDefault();
+      openModal();
+      return;
     }
   });
 
-  // ---------------------------------------------------------------
-  // Modal logic
-  // ---------------------------------------------------------------
+  // ---------- Modal ----------
   function openModal() {
     const total = Number(subtotalEl.textContent) || 0;
     if (total <= 0) {
@@ -296,7 +260,6 @@
     openSalesCache = null;
     modalBackdrop.style.display = "flex";
     updateModal();
-    // Fetch open sales for batch option
     fetchOpenSales();
   }
 
@@ -333,7 +296,6 @@
     const rmBtn = document.createElement("button");
     rmBtn.type = "button";
     rmBtn.textContent = "×";
-    rmBtn.title = "Remove row";
     rmBtn.style.cssText = "padding:0.25rem 0.5rem; background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; border-radius:0.25rem; cursor:pointer;";
     rmBtn.addEventListener("click", () => {
       if (codesBody.querySelectorAll("tr").length <= 1) return;
@@ -373,10 +335,8 @@
     mpesaTotalEl.textContent = mpesaTotal.toFixed(2);
     mpesaRemainingEl.textContent = remaining.toFixed(2);
 
-    // Show cash field only when M-Pesa doesn't cover full
     cashBlock.style.display = (mpesaTotal < saleTotal) ? "block" : "none";
 
-    // Enable/disable confirm
     let valid = true;
     let reason = "";
 
@@ -406,19 +366,15 @@
     confirmBtn.disabled = !valid;
     confirmBtn.style.opacity = valid ? "1" : "0.5";
 
-    // Summary
-    let summary = "";
     if (valid) {
       const change = Math.max(0, cash - remaining);
-      summary = "Ready to confirm. Change: KES " + change.toFixed(2);
+      modalSummary.textContent = "Ready to confirm. Change: KES " + change.toFixed(2);
       modalSummary.style.color = "#059669";
     } else {
-      summary = reason;
+      modalSummary.textContent = reason;
       modalSummary.style.color = "#b91c1c";
     }
-    modalSummary.textContent = summary;
 
-    // Open sales picker (when M-Pesa exceeds current sale)
     if (mpesaTotal > saleTotal && openSalesCache && openSalesCache.length > 0) {
       openSalesBlock.style.display = "block";
       renderOpenSales();
@@ -429,15 +385,10 @@
 
   modalCashInput.addEventListener("input", updateModal);
 
-  // ---------------------------------------------------------------
-  // Fetch open sales for batch option
-  // ---------------------------------------------------------------
   function fetchOpenSales() {
     fetch("/sales/api/open-sales/", { credentials: "same-origin" })
       .then(r => r.ok ? r.json() : [])
-      .then(data => {
-        openSalesCache = Array.isArray(data) ? data : [];
-      })
+      .then(data => { openSalesCache = Array.isArray(data) ? data : []; })
       .catch(() => { openSalesCache = []; });
   }
 
@@ -452,29 +403,22 @@
       cb.value = String(s.id);
       cb.addEventListener("change", updateModal);
       label.appendChild(cb);
-      label.appendChild(document.createTextNode(
-        "  Sale #" + s.id + " — KES " + s.total
-      ));
+      label.appendChild(document.createTextNode("  Sale #" + s.id + " — KES " + s.total));
       openSalesList.appendChild(label);
     });
   }
 
-  // ---------------------------------------------------------------
-  // Confirm
-  // ---------------------------------------------------------------
   confirmBtn.addEventListener("click", function () {
     const rows = readCodeRows();
     const saleTotal = Number(subtotalEl.textContent) || 0;
     const mpesaTotal = rows.reduce((s, r) => s + (r.amount || 0), 0);
     const cash = mpesaTotal >= saleTotal ? 0 : Number(modalCashInput.value || 0);
 
-    // Batch: check selected open sales
     const batchIds = [];
     openSalesList.querySelectorAll("input[type='checkbox']").forEach(cb => {
       if (cb.checked) batchIds.push(Number(cb.value));
     });
 
-    // If a batch is selected, verify total matches
     if (batchIds.length > 0) {
       let batchTotal = 0;
       openSalesCache.forEach(s => {
@@ -482,7 +426,7 @@
       });
       const expected = saleTotal + batchTotal;
       if (Math.abs(expected - mpesaTotal) > 0.01) {
-        alert("M-Pesa total (" + mpesaTotal.toFixed(2) + ") must exactly match the sum of selected sales (" + expected.toFixed(2) + ").");
+        alert("M-Pesa total (" + mpesaTotal.toFixed(2) + ") must exactly match the selected sales (" + expected.toFixed(2) + ").");
         return;
       }
     }
@@ -496,13 +440,8 @@
     form.submit();
   });
 
-  cancelBtn.addEventListener("click", function () {
-    closeModal();
-  });
+  cancelBtn.addEventListener("click", closeModal);
 
-  // ---------------------------------------------------------------
-  // Initial UI state
-  // ---------------------------------------------------------------
   updateChangeHint();
   if (products.length) addCartRow();
 })();
