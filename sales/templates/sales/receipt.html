@@ -1,11 +1,13 @@
 {% extends "sales/base_sales.html" %}
 {% block sales_content %}
 <h1>Receipt {{ sale.sale_number }}</h1>
+
 <p>Date: {{ sale.sold_at }} | Point: {{ sale.operating_point.name }}</p>
 <p>Cashier: {{ sale.cashier }} | Payment: {{ sale.get_payment_method_display }}</p>
+
 {% if sale.payment_method == "MPESA" %}
   <p>
-    <strong>M-Pesa:</strong>
+    <strong>M-Pesa (STK Push):</strong>
     {% if sale.payment_status == "PAID" %}
       <span style="color:#059669;">PAID</span>
     {% elif sale.payment_status == "PENDING" %}
@@ -21,31 +23,85 @@
     &nbsp;|&nbsp; Phone: {{ sale.customer_phone }}
   </p>
 {% endif %}
+
 {% if sale.payment_method == "MPESA_MANUAL" %}
-  <p>
-    <strong>M-Pesa (Customer-Paid):</strong>
-  </p>
-  {% if sale.mpesa_allocations.exists %}
-    <ul style="margin:0.25rem 0 0 1rem; padding:0;">
-      {% for a in sale.mpesa_allocations.all %}
-        <li>
-          Code: <strong>{{ a.payment.receipt_code }}</strong>
-          &nbsp;|&nbsp; Amount: KES {{ a.amount }}
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <em>No payment record found.</em>
-  {% endif %}
+  <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:0.5rem; padding:0.75rem; margin:0.75rem 0;">
+    <p style="margin:0 0 0.5rem 0;"><strong>M-Pesa (Customer-Paid):</strong></p>
+
+    {% if sale.mpesa_allocations.exists %}
+      <ul style="margin:0.25rem 0 0.5rem 1rem; padding:0;">
+        {% for a in sale.mpesa_allocations.all %}
+          <li>
+            Code: <strong>{{ a.payment.receipt_code }}</strong>
+            &nbsp;|&nbsp; Amount: KES {{ a.amount }}
+          </li>
+        {% endfor %}
+      </ul>
+
+      {# Cash component (if any) #}
+      {% with total_mpesa=0 %}
+        {% for a in sale.mpesa_allocations.all %}
+          {# Using a sum inside the template is not trivial; we compute in the view #}
+        {% endfor %}
+      {% endwith %}
+
+      {% if cash_paid > 0 %}
+        <p style="margin:0.5rem 0 0 0;">
+          <strong>Cash paid:</strong> KES {{ cash_paid }}
+        </p>
+      {% endif %}
+    {% else %}
+      <em>No M-Pesa payment record found.</em>
+    {% endif %}
+  </div>
 {% endif %}
 
-<table>
-<thead><tr><th>Product</th><th>Quantity</th><th>Unit price (KES)</th><th>Line total (KES)</th></tr></thead>
-<tbody>{% for i in sale.items.all %}
-<tr><td>{{ i.product_name_snapshot }}</td><td>{{ i.quantity|floatformat:"-3" }} {{ i.unit_name_snapshot }}</td><td>{{ i.unit_price }}</td><td>{{ i.line_total }}</td></tr>
-{% endfor %}</tbody></table>
+<table style="width:100%; border-collapse:collapse; margin-top:0.75rem;">
+<thead>
+  <tr style="border-bottom:1px solid #e5e7eb;">
+    <th style="text-align:left; padding:0.5rem;">Product</th>
+    <th style="text-align:left; padding:0.5rem;">Quantity</th>
+    <th style="text-align:right; padding:0.5rem;">Unit price (KES)</th>
+    <th style="text-align:right; padding:0.5rem;">Line total (KES)</th>
+  </tr>
+</thead>
+<tbody>
+{% for i in sale.items.all %}
+  <tr style="border-bottom:1px solid #f1f5f9;">
+    <td style="padding:0.5rem;">{{ i.product_name_snapshot }}</td>
+    <td style="padding:0.5rem;">{{ i.quantity|floatformat:"-3" }} {{ i.unit_name_snapshot }}</td>
+    <td style="padding:0.5rem; text-align:right;">{{ i.unit_price }}</td>
+    <td style="padding:0.5rem; text-align:right;">{{ i.line_total }}</td>
+  </tr>
+{% endfor %}
+</tbody>
+</table>
+
 <p>Subtotal: KES {{ sale.subtotal }}</p>
 <h2>Total: KES {{ sale.total }}</h2>
-<p>Tendered: KES {{ sale.amount_tendered }} | Change: KES {{ sale.change_due }}</p>
-<button onclick="window.print()">Print receipt</button>
+<p>
+  Tendered: KES {{ sale.amount_tendered }}
+  &nbsp;|&nbsp;
+  Change: KES {{ sale.change_due }}
+</p>
+
+<p style="margin-top:1rem; padding-top:0.75rem; border-top:1px solid #e5e7eb;">
+  <strong>Served by:</strong> {{ sale.cashier }}
+</p>
+
+<div style="margin-top:1.5rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+  <a href="{% url 'sales:pos' %}"
+     style="display:inline-block; padding:0.75rem 1.25rem; background:#059669; color:#fff; border-radius:0.5rem; text-decoration:none; font-weight:600;">
+    â† New sale
+  </a>
+  <a href="{% url 'sales:history' %}"
+     style="display:inline-block; padding:0.75rem 1.25rem; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; border-radius:0.5rem; text-decoration:none; font-weight:600;">
+    Sales history
+  </a>
+  <button onclick="window.print()"
+          style="padding:0.75rem 1.25rem; background:#3730a3; color:#fff; border:none; border-radius:0.5rem; font-weight:600; cursor:pointer;">
+    Print receipt
+  </button>
+</div>
+
 {% endblock %}

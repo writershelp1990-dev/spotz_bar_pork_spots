@@ -115,10 +115,30 @@ def pos(request):
 @login_required
 def receipt(request, sale_id):
     require_active_user(request.user)
-    sale = get_object_or_404(Sale.objects.prefetch_related("items"), pk=sale_id, completed=True)
+    sale = get_object_or_404(
+        Sale.objects.prefetch_related(
+            "items",
+            "mpesa_allocations__payment",
+            "mpesa_transactions",
+        ),
+        pk=sale_id,
+        completed=True,
+    )
     if not is_director(request.user) and sale.cashier_id != request.user.pk:
         raise PermissionDenied("You cannot view another cashier's receipt.")
-    return render(request, "sales/receipt.html", {"sale": sale})
+
+    # Compute the cash portion of the payment for split M-Pesa + cash sales.
+    mpesa_total = sum(
+        (a.amount for a in sale.mpesa_allocations.all()),
+        start=Decimal("0.00"),
+    )
+    cash_paid = max(Decimal("0.00"), (sale.amount_tendered or Decimal("0.00")) - mpesa_total)
+
+    return render(request, "sales/receipt.html", {
+        "sale": sale,
+        "mpesa_total": mpesa_total,
+        "cash_paid": cash_paid,
+    })
 
 @login_required
 def catalog_home(request):
