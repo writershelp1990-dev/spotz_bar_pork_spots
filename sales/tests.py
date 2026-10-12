@@ -484,7 +484,7 @@ class MpesaV2PaymentTests(TestCase):
 
         today = timezone.localdate()
         BusinessDay.objects.filter(business_date=today, status="OPEN").delete()
-        BusinessDay.objects.create(
+        self.business_day = BusinessDay.objects.create(
             business_date=today,
             status="OPEN",
             opened_by=self.user,
@@ -543,7 +543,7 @@ class MpesaV2PaymentTests(TestCase):
 
         sale = Sale.objects.create(
             sale_number="HELD-" + str(Sale.objects.count() + 1),
-            business_day_id=1,
+            business_day=self.business_day,
             operating_point=self.point,
             cashier=self.user,
             payment_method="MPESA_MANUAL",
