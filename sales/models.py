@@ -163,6 +163,12 @@ class StockLedger(models.Model):
         RECEIPT = "RECEIPT", "Stock receipt"
         SALE = "SALE", "Sale"
         ADJUSTMENT = "ADJUSTMENT", "Adjustment"
+        # --- Added in Stage 3 of the stock module ---
+        TRANSFER_OUT = "TRANSFER_OUT", "Transfer out (source side)"
+        TRANSFER_IN = "TRANSFER_IN", "Transfer in (destination side)"
+        PRODUCTION_OUT = "PRODUCTION_OUT", "Production consumption"
+        PRODUCTION_IN = "PRODUCTION_IN", "Production output"
+        WASTAGE = "WASTAGE", "Wastage / spoilage"
 
     product = models.ForeignKey(
         "catalog.Product", on_delete=models.PROTECT, related_name="stock_movements"
@@ -171,7 +177,7 @@ class StockLedger(models.Model):
         "accounts.OperatingPoint", on_delete=models.PROTECT,
         related_name="stock_movements"
     )
-    movement_type = models.CharField(max_length=12, choices=MovementType.choices)
+    movement_type = models.CharField(max_length=20, choices=MovementType.choices)
     quantity_delta = models.DecimalField(max_digits=14, decimal_places=3)
     balance_after = models.DecimalField(max_digits=14, decimal_places=3)
     sale = models.ForeignKey(
