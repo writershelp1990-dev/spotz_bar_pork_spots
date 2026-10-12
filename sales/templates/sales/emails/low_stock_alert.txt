@@ -1,0 +1,16 @@
+{% if is_reminder %}REMINDER - {% endif %}LOW STOCK ALERT
+=====================================
+
+{{ product_line }}
+Category: {{ category }}
+Location: {{ operating_point }}
+
+Current stock: {{ current }} {{ unit }}
+Minimum:       {{ minimum }} {{ unit }}
+Target:        {{ target }} {{ unit }}
+Suggested replenishment: {{ suggested }} {{ unit }}
+
+Alert raised: {{ alert.triggered_at|date:"Y-m-d H:i" }}
+{% if is_reminder %}This is an automatic reminder. The shortage is still unresolved.{% endif %}
+
+Please restock {{ product_line }} at {{ operating_point }}.

@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 # Python
 # ============================================================
 __pycache__/
@@ -132,3 +132,36 @@ phase1_*_backup_*/
 
 # Un-ignore the example file so it's committed
 !.env.example
+
+# Timestamped backup folders created by patch scripts
+*_fix_*/
+*_build_*/
+*_backup_*/
+*_disabled_*/
+*_fix2_*/
+stk_disable_backup_*/
+low_stock_*/
+property_*/
+# Ad-hoc backup files
+*.py.bak
+*.py.*.bak
+*.broken_*
+*.html.broken_*
+# Env / secrets
+.env.local
+# Local
+# Session artifacts and superseded files
+*.unused_*
+*.backup_*
+*.py.*.bak
+*.broken_*
+*_backup_*/
+*_disabled_*/
+low_stock_*/
+property_*/
+arrow_fix*/
+batch_and_hold_fix*/
+hold_unpaid_fix*/
+stk_disable_*/
+stk_push_disabled_*/
+receipt_form_fix_*/

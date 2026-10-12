@@ -33,6 +33,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    "property",
     "sales",
     'django.contrib.admin',
     'django.contrib.auth',
@@ -201,6 +202,10 @@ import os as _os
 
 MPESA_ENVIRONMENT = _os.environ.get("MPESA_ENVIRONMENT", "sandbox")
 MPESA_MOCK_MODE = _os.environ.get("MPESA_MOCK_MODE", "true").lower() in ("1", "true", "yes")
+# STK Push stays disabled until the till and live integration are ready.
+MPESA_STK_PUSH_ENABLED = _os.environ.get(
+    "MPESA_STK_PUSH_ENABLED", "false"
+).strip().lower() in ("1", "true", "yes")
 
 MPESA_CONSUMER_KEY    = _os.environ.get("MPESA_CONSUMER_KEY", "")
 MPESA_CONSUMER_SECRET = _os.environ.get("MPESA_CONSUMER_SECRET", "")

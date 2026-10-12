@@ -1,0 +1,42 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Staff Area Access</h1>
+<p class="muted">
+  Tick an area to grant a staff member access to assets, checks, and reports
+  in that physical area. Unticking revokes access. Every change is audited.
+</p>
+
+<form method="post" action="{% url 'property:staff_access_update' %}">
+  {% csrf_token %}
+  <div style="overflow-x:auto">
+    <table class="property-table" style="min-width:800px">
+      <thead>
+        <tr>
+          <th>Staff</th>
+          {% for area in areas %}<th style="text-align:center">{{ area.code }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in matrix %}
+        <tr>
+          <td>
+            <strong>{{ row.employee.user.get_full_name|default:row.employee.user.username }}</strong>
+            <div class="muted small">{{ row.employee.user.role }}</div>
+          </td>
+          {% for cell in row.cells %}
+            <td style="text-align:center">
+              <input type="checkbox"
+                     name="access_{{ row.employee.pk }}_{{ cell.area.code }}"
+                     {% if cell.granted %}checked{% endif %}>
+            </td>
+          {% endfor %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="{{ areas|length|add:1 }}" class="muted">No active staff.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p style="margin-top:16px"><button type="submit">Save changes</button></p>
+</form>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Review: {{ report.proposed_name }}</h1>
+<p class="muted">Reported by {{ report.reported_by.username }} on {{ report.submitted_at }} · Area {{ report.area.code }}</p>
+<table class="property-table">
+  <tr><th>Proposed category</th><td>{{ report.proposed_category|default:"—" }}</td></tr>
+  <tr><th>Description</th><td>{{ report.description|default:"—" }}</td></tr>
+  <tr><th>Condition</th><td>{{ report.get_condition_display }}</td></tr>
+  <tr><th>Quantity</th><td>{{ report.quantity }}</td></tr>
+  <tr><th>Identifier</th><td>{{ report.asset_identifier|default:"—" }}</td></tr>
+  <tr><th>Notes</th><td>{{ report.notes|default:"—" }}</td></tr>
+</table>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Record decision</button>
+</form>
+{% endblock %}

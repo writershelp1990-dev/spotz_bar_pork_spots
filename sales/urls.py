@@ -27,4 +27,12 @@ urlpatterns = [
 
     # ---- Batch receipt ----
     path("batch-receipt/<int:payment_id>/", views.batch_receipt, name="batch_receipt"),
+    # ---- Smart low-stock ----
+    path("stock/alert-rules/", views.stock_alert_rules, name="stock_alert_rules"),
+    path("api/low-stock/pending/", views.api_pending_low_stock_alerts, name="api_low_stock_pending"),
+    path("api/low-stock/<int:notification_id>/ack/", views.api_acknowledge_low_stock_alert, name="api_low_stock_ack"),
+    # ---- Low-stock rule management (Director-only) ----
+    path("stock/alert-rules/new/", views.stock_alert_rule_create, name="stock_alert_rule_create"),
+    path("stock/alert-rules/<int:pk>/edit/", views.stock_alert_rule_edit, name="stock_alert_rule_edit"),
+    path("stock/alert-rules/<int:pk>/toggle/", views.stock_alert_rule_toggle, name="stock_alert_rule_toggle"),
 ]

@@ -1,0 +1,11 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Request Relocation — {{ asset.asset_number }}</h1>
+<p class="muted">{{ asset.name }} currently at {{ asset.current_area.code }}</p>
+<p class="muted">A Director must approve your request. The recipient must accept and confirm receipt before the official location changes.</p>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Submit request</button>
+</form>
+{% endblock %}

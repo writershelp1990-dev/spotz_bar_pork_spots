@@ -1,0 +1,20 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Asset Relocations</h1>
+{% if is_dir %}<p><a href="{% url 'property:approval_queue' %}">Approval queue</a></p>{% endif %}
+<table class="property-table">
+  <thead><tr><th>Asset</th><th>From</th><th>To</th><th>Requested by</th><th>Recipient</th><th>Submitted</th><th>Status</th></tr></thead>
+  <tbody>{% for r in relocations %}
+    <tr>
+      <td><a href="{% url 'property:relocation_detail' r.pk %}">{{ r.asset.asset_number }}</a></td>
+      <td>{{ r.origin_area.code }}</td>
+      <td>{{ r.destination_area.code }}</td>
+      <td>{{ r.requested_by.username }}</td>
+      <td>{{ r.receiving_attendant.username }}</td>
+      <td>{{ r.submitted_at }}</td>
+      <td><span class="status-badge status-{{ r.status }}">{{ r.get_status_display }}</span></td>
+    </tr>
+  {% empty %}<tr><td colspan="7" class="muted">No relocations.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

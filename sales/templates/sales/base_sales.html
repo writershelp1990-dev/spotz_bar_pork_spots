@@ -1,7 +1,7 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% block content %}
 <div style="max-width:1100px;margin:0 auto;padding:20px">
-  <nav style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+  <nav class="spotz-sales-quicknav" aria-label="Sales navigation">
     <a href="{% url 'sales:pos' %}">Point of Sale</a>
     <a href="{% url 'sales:history' %}">Sales history</a>
     <a href="{% url 'sales:catalog' %}">Products and prices</a>

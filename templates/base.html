@@ -1,4 +1,4 @@
-﻿{% load static %}
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -81,7 +81,18 @@
             <a href="/sales/catalog/">
                 <span class="nav-icon">◇</span>
                 <span>Products</span>
+            </a>            {% if user.is_director %}
+            <a href="/sales/stock/alert-rules/">
+                <span class="nav-icon">▦</span>
+                <span>Low-Stock Rules</span>
             </a>
+            {% endif %}
+            {% if user.is_active_staff_user %}
+            <a href="/property/">
+                <span class="nav-icon">▧</span>
+                <span>Property &amp; Assets</span>
+            </a>
+            {% endif %}
 
             <a href="/accounts/staff/">
                 <span class="nav-icon">♙</span>
@@ -211,6 +222,7 @@ function toggleSidebar() {
 
 {% block extra_js %}{% endblock %}
 
+{% include "sales/_low_stock_popup.html" %}
 </body>
 </html>
 

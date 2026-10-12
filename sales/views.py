@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import transaction
 from decimal import Decimal, InvalidOperation
 from django.views.decorators.csrf import csrf_exempt
@@ -75,6 +76,19 @@ def pos(request):
                     amount_tendered=form.cleaned_data["amount_tendered"],
                     items_json=form.cleaned_data["items_json"],
                 )
+
+                # --- Hold as unpaid ---
+                # The cashier saved the sale without payment.
+                # The sale is created (PENDING) and can be settled later.
+                if form.cleaned_data.get("hold_as_unpaid"):
+                    sale.completed = False
+                    sale.payment_status = Sale.PaymentStatus.PENDING
+                    sale.save(update_fields=["completed", "payment_status"])
+                    messages.success(
+                        request,
+                        f"Sale {sale.sale_number} held as unpaid.",
+                    )
+                    return redirect("sales:pos")
 
                 # M-Pesa: redirect to the STK-push screen instead of completing
                 # ---- Manual M-Pesa (one or more codes, possibly batch) ----
@@ -368,8 +382,71 @@ def price_add(request):
 @login_required
 def stock_home(request):
     director_required(request.user)
-    balances = StockBalance.objects.select_related("product", "operating_point").order_by("operating_point__name", "product__name")
-    return render(request, "sales/stock.html", {"balances": balances})
+
+    points = list(
+        OperatingPoint.objects.filter(is_active=True).order_by("name")
+    )
+
+    # Include all products in the lookup so historical stock for an
+    # inactive product is not silently hidden.
+    products = list(
+        Product.objects.select_related(
+            "category", "selling_unit", "size_unit"
+        ).order_by("category__name", "name", "brand", "variety")
+    )
+    product_map = {product.pk: product for product in products}
+
+    balances = StockBalance.objects.filter(
+        operating_point__in=points,
+    ).select_related("product", "operating_point")
+
+    balance_map = {
+        (balance.operating_point_id, balance.product_id): balance
+        for balance in balances
+    }
+
+    # Existing balance records remain visible even if an assignment
+    # has not yet been reviewed. No balances or ledger rows are changed.
+    balance_product_ids = {}
+    for balance in balances:
+        balance_product_ids.setdefault(balance.operating_point_id, set()).add(
+            balance.product_id
+        )
+
+    inventory_sections = []
+    for point in points:
+        assigned_ids = set(
+            Product.objects.filter(
+                is_active=True,
+                operating_points=point,
+            ).values_list("pk", flat=True)
+        )
+        visible_ids = assigned_ids | balance_product_ids.get(point.pk, set())
+
+        point_products = [
+            product for product in products if product.pk in visible_ids
+        ]
+
+        rows = []
+        for product in point_products:
+            balance = balance_map.get((point.pk, product.pk))
+            rows.append({
+                "product": product,
+                "quantity": balance.quantity if balance else 0,
+                "updated_at": balance.updated_at if balance else None,
+                "is_zero": balance is None or balance.quantity == 0,
+            })
+
+        inventory_sections.append({
+            "point": point,
+            "rows": rows,
+            "product_count": len(rows),
+            "zero_count": sum(1 for row in rows if row["is_zero"]),
+        })
+
+    return render(request, "sales/stock.html", {
+        "inventory_sections": inventory_sections,
+    })
 
 @login_required
 def stock_receive(request):
@@ -417,6 +494,14 @@ def mpesa_pay(request, sale_id):
     - POST: legacy path (form resubmits phone_number directly).
     """
     require_active_user(request.user)
+    if not settings.MPESA_STK_PUSH_ENABLED:
+        messages.error(
+            request,
+            "STK Push is disabled until the till is registered and integration is configured. "
+            "Use Customer-Paid M-Pesa and verify the receipt against the actual transaction."
+        )
+        return redirect("sales:pos")
+
     sale = get_object_or_404(Sale, pk=sale_id, completed=False)
 
     if not is_director(request.user) and sale.cashier_id != request.user.pk:
@@ -763,3 +848,141 @@ def batch_receipt(request, payment_id):
         "total_paid": total_paid,
     })
 
+
+
+# ===========================================================================
+# SMART LOW-STOCK NOTIFICATION VIEWS
+# ===========================================================================
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.core.exceptions import PermissionDenied
+from .models import StockAlert, StockAlertNotification, StockAlertRule
+from .low_stock import _describe_product
+
+
+@login_required
+def stock_alert_rules(request):
+    if not is_director(request.user):
+        raise PermissionDenied
+    rules = (StockAlertRule.objects
+             .select_related("product", "operating_point")
+             .order_by("operating_point__code", "product__name"))
+    operating_points = OperatingPoint.objects.filter(is_active=True).order_by("name")
+    products = (Product.objects.filter(is_active=True, track_inventory=True)
+                .order_by("name"))
+    return render(request, "sales/stock_alert_rules.html", {
+        "rules": rules,
+        "operating_points": operating_points,
+        "products": products,
+    })
+
+
+@login_required
+def api_pending_low_stock_alerts(request):
+    qs = (StockAlertNotification.objects
+          .filter(recipient=request.user, alert__status=StockAlert.Status.ACTIVE)
+          .select_related("alert__product", "alert__product__category",
+                          "alert__product__selling_unit", "alert__operating_point")
+          .order_by("created_at"))
+    payload = []
+    for n in qs:
+        a = n.alert
+        balance = (StockBalance.objects
+                   .filter(product=a.product, operating_point=a.operating_point)
+                   .values_list("quantity", flat=True).first()) or 0
+        payload.append({
+            "id": n.pk,
+            "product_line": _describe_product(a.product),
+            "category": str(a.product.category) if a.product.category_id else "",
+            "operating_point": a.operating_point.name,
+            "current": str(balance),
+            "unit": a.product.selling_unit.abbreviation if a.product.selling_unit_id else "",
+            "minimum": str(a.rule.minimum_quantity),
+            "target": str(a.rule.target_quantity),
+            "suggested": str(max(a.rule.target_quantity - balance, 0)),
+            "triggered_at": a.triggered_at.isoformat(),
+        })
+    return JsonResponse({"alerts": payload})
+
+
+@login_required
+@require_POST
+def api_acknowledge_low_stock_alert(request, notification_id):
+    StockAlertNotification.objects.filter(
+        pk=notification_id, recipient=request.user,
+    ).delete()
+    return JsonResponse({"ok": True})
+
+# ===========================================================================
+# DIRECTOR RULE MANAGEMENT (create / edit / toggle, no hard delete)
+# ===========================================================================
+from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect
+from django.views.decorators.http import require_POST
+from decimal import Decimal, InvalidOperation
+from catalog.models import Product
+from accounts.models import OperatingPoint
+
+
+def _director_gate(request):
+    if not is_director(request.user):
+        raise PermissionDenied
+
+
+def _parse_thresholds(request):
+    try:
+        mn = Decimal(str(request.POST.get("minimum_quantity", "")).strip())
+        tg = Decimal(str(request.POST.get("target_quantity", "")).strip())
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValidationError("Minimum and target must be valid numbers.")
+    if mn < 0:
+        raise ValidationError("Minimum cannot be negative.")
+    if tg <= mn:
+        raise ValidationError("Target must be greater than minimum.")
+    return mn, tg
+
+
+@login_required
+@require_POST
+def stock_alert_rule_create(request):
+    _director_gate(request)
+    op = get_object_or_404(OperatingPoint, pk=request.POST.get("operating_point"))
+    product = get_object_or_404(Product, pk=request.POST.get("product"))
+    mn, tg = _parse_thresholds(request)
+    rule, created = StockAlertRule.objects.get_or_create(
+        product=product, operating_point=op,
+        defaults=dict(
+            minimum_quantity=mn, target_quantity=tg,
+            is_active=True, created_by=request.user,
+        ),
+    )
+    if not created:
+        messages.error(request, f"A rule for {product.display_name} @ {op.name} already exists. Edit it instead.")
+    else:
+        messages.success(request, f"Rule created: {product.display_name} @ {op.name} (min {mn}, target {tg}).")
+    return redirect("sales:stock_alert_rules")
+
+
+@login_required
+@require_POST
+def stock_alert_rule_edit(request, pk):
+    _director_gate(request)
+    rule = get_object_or_404(StockAlertRule, pk=pk)
+    mn, tg = _parse_thresholds(request)
+    rule.minimum_quantity = mn
+    rule.target_quantity = tg
+    rule.save(update_fields=["minimum_quantity", "target_quantity", "updated_at"])
+    messages.success(request, f"Updated {rule.product.display_name} @ {rule.operating_point.name}.")
+    return redirect("sales:stock_alert_rules")
+
+
+@login_required
+@require_POST
+def stock_alert_rule_toggle(request, pk):
+    _director_gate(request)
+    rule = get_object_or_404(StockAlertRule, pk=pk)
+    rule.is_active = not rule.is_active
+    rule.save(update_fields=["is_active", "updated_at"])
+    verb = "Activated" if rule.is_active else "Deactivated"
+    messages.success(request, f"{verb} {rule.product.display_name} @ {rule.operating_point.name}.")
+    return redirect("sales:stock_alert_rules")

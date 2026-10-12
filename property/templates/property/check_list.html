@@ -1,0 +1,12 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Property Checks</h1>
+<p><a href="{% url 'property:check_create' %}">+ New check</a></p>
+<table class="property-table">
+  <thead><tr><th>When</th><th>Area</th><th>By</th><th>Lines</th></tr></thead>
+  <tbody>{% for c in checks %}
+    <tr><td>{{ c.checked_at }}</td><td>{{ c.area.code }}</td><td>{{ c.checked_by.username }}</td><td>{{ c.lines.count }}</td></tr>
+  {% empty %}<tr><td colspan="4" class="muted">None yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

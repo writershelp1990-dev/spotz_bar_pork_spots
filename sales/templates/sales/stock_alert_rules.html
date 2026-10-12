@@ -1,0 +1,114 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+
+<h1>Low-Stock Alert Rules</h1>
+<p class="muted">
+  Configure the minimum and target stock level for each product at each
+  operating point. When a product's balance reaches or falls below the
+  minimum, the system sends a pop-up and an email to the Director and the
+  attendants at that location, and repeats every 12 hours until stock rises
+  above the minimum.
+</p>
+
+{% if messages %}
+  {% for m in messages %}<p class="msg msg-{{ m.tags }}">{{ m }}</p>{% endfor %}
+{% endif %}
+
+<h2>Existing Rules</h2>
+
+<table class="rules-table">
+  <thead>
+    <tr>
+      <th>Product</th>
+      <th>Location</th>
+      <th>Minimum</th>
+      <th>Target</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in rules %}
+    <tr class="{% if not r.is_active %}inactive{% endif %}">
+      <td>
+        <strong>{{ r.product.display_name }}</strong>
+        {% if r.product.code %}<div class="muted small">SKU {{ r.product.code }}</div>{% endif %}
+      </td>
+      <td>{{ r.operating_point.name }}</td>
+      <td>{{ r.minimum_quantity }}</td>
+      <td>{{ r.target_quantity }}</td>
+      <td>{% if r.is_active %}Active{% else %}Inactive{% endif %}</td>
+      <td>
+        <form method="post" action="{% url 'sales:stock_alert_rule_edit' r.pk %}" class="inline-form">
+          {% csrf_token %}
+          <input type="number" step="0.001" min="0" name="minimum_quantity"
+                 value="{{ r.minimum_quantity }}" required style="width:90px">
+          <input type="number" step="0.001" min="0" name="target_quantity"
+                 value="{{ r.target_quantity }}" required style="width:90px">
+          <button type="submit">Save</button>
+        </form>
+        <form method="post" action="{% url 'sales:stock_alert_rule_toggle' r.pk %}" class="inline-form">
+          {% csrf_token %}
+          <button type="submit">{% if r.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+        </form>
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6">No rules configured yet. Add one below.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Add a Rule</h2>
+
+<form method="post" action="{% url 'sales:stock_alert_rule_create' %}" class="rule-form">
+  {% csrf_token %}
+  <p>
+    <label>Operating point<br>
+      <select name="operating_point" required>
+        <option value="">— choose a location —</option>
+        {% for op in operating_points %}
+          <option value="{{ op.pk }}">{{ op.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </p>
+  <p>
+    <label>Product<br>
+      <select name="product" required style="min-width:320px">
+        <option value="">— choose a product —</option>
+        {% for p in products %}
+          <option value="{{ p.pk }}">
+            {{ p.display_name }}{% if p.code %} [{{ p.code }}]{% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+  </p>
+  <p>
+    <label>Minimum quantity<br>
+      <input type="number" step="0.001" min="0" name="minimum_quantity" required>
+    </label>
+  </p>
+  <p>
+    <label>Target quantity (must be greater than minimum)<br>
+      <input type="number" step="0.001" min="0" name="target_quantity" required>
+    </label>
+  </p>
+  <p><button type="submit">Create rule</button></p>
+</form>
+
+<style>
+.rules-table { width:100%; border-collapse:collapse; margin:12px 0 24px; }
+.rules-table th, .rules-table td { padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; vertical-align:top; }
+.rules-table tr.inactive { opacity:.55; }
+.inline-form { display:inline-block; margin-right:6px; }
+.rule-form input, .rule-form select { padding:6px 8px; }
+.muted { color:#6b7280; }
+.small { font-size:.85em; }
+.msg { padding:8px 12px; border-radius:6px; margin:8px 0; }
+.msg-success { background:#dcfce7; }
+.msg-error   { background:#fee2e2; }
+</style>
+
+{% endblock %}

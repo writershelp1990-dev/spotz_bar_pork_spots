@@ -1,0 +1,66 @@
+<div id="property-popup-container" aria-live="polite"></div>
+<script>
+(function () {
+  const container = document.getElementById("property-popup-container");
+  if (!container) return;
+  const shown = new Set();
+  function getCSRFToken() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
+  }
+  function renderAlert(a) {
+    if (shown.has(a.id)) return;
+    shown.add(a.id);
+    const el = document.createElement("div");
+    el.className = "property-popup";
+    el.setAttribute("role", "alertdialog");
+    el.innerHTML =
+      '<div class="property-popup__title">' + a.title + '</div>' +
+      '<div class="property-popup__body">' +
+      '<strong>' + a.asset + '</strong>' +
+      '<div class="muted">' + a.from_area + ' → ' + a.to_area + '</div>' +
+      '<div>' + a.message + '</div>' +
+      '<div class="muted small">' + new Date(a.created_at).toLocaleString() + '</div>' +
+      '</div>' +
+      '<a class="property-popup__link" href="' + a.url + '">Open</a> ' +
+      '<button class="property-popup__close" aria-label="Close">Dismiss</button>';
+    el.querySelector(".property-popup__close").addEventListener("click", async () => {
+      try {
+        await fetch(a.ack_url, {
+          method: "POST",
+          headers: { "X-CSRFToken": getCSRFToken(), "X-Requested-With": "XMLHttpRequest" },
+          credentials: "same-origin",
+        });
+      } catch (e) {}
+      el.remove();
+    });
+    container.appendChild(el);
+  }
+  async function poll() {
+    try {
+      const res = await fetch("/property/api/pending/", {
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        for (const a of data.alerts) renderAlert(a);
+      }
+    } catch (e) {}
+  }
+  poll();
+  setInterval(poll, 60000);
+})();
+</script>
+<style>
+.property-popup { position: fixed; right: 16px; bottom: 16px; z-index: 9999;
+  max-width: 420px; background: #eff6ff; border: 2px solid #2563eb;
+  border-radius: 8px; padding: 14px 16px; box-shadow: 0 6px 24px rgba(0,0,0,.18); }
+.property-popup__title { color: #1e40af; font-weight: 700; letter-spacing: .04em; margin-bottom: 6px; }
+.property-popup__close, .property-popup__link { display: inline-block; margin-top: 10px;
+  padding: 6px 12px; border: 0; border-radius: 6px; background: #2563eb; color: white;
+  cursor: pointer; font-weight: 600; text-decoration: none; font-size: .9em; }
+.property-popup__close { background: #6b7280; }
+.property-popup .muted { color: #6b7280; }
+.property-popup .small { font-size: .85em; }
+</style>

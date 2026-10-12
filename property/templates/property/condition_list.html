@@ -1,0 +1,25 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Condition Reports</h1>
+<table class="property-table">
+  <thead><tr><th>Asset</th><th>Area</th><th>Condition</th><th>Qty</th><th>Reported</th><th>Status</th>{% if is_dir %}<th></th>{% endif %}</tr></thead>
+  <tbody>{% for r in reports %}
+    <tr>
+      <td><a href="{% url 'property:asset_detail' r.asset.pk %}">{{ r.asset.asset_number }}</a></td>
+      <td>{{ r.area.code }}</td>
+      <td>{{ r.get_condition_reported_display }}</td>
+      <td>{{ r.quantity_affected }}</td>
+      <td>{{ r.reported_at }}</td>
+      <td><span class="status-badge">{{ r.get_status_display }}</span></td>
+      {% if is_dir %}<td>
+        {% if r.status != 'RESOLVED' %}
+        <form method="post" action="{% url 'property:condition_resolve' r.pk %}" style="display:inline">
+          {% csrf_token %}<input type="text" name="resolution_notes" placeholder="Resolution notes"><button type="submit">Resolve</button>
+        </form>
+        {% endif %}
+      </td>{% endif %}
+    </tr>
+  {% empty %}<tr><td colspan="7" class="muted">No condition reports.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

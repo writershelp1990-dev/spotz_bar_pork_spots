@@ -1,0 +1,10 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>{% if mode == "create" %}New asset{% else %}Edit {{ asset.asset_number }}{% endif %}</h1>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Save</button>
+  <a href="{% url 'property:asset_list' %}">Cancel</a>
+</form>
+{% endblock %}

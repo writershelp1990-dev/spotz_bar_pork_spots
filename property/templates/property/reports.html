@@ -1,0 +1,38 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Director Reports — Relocations</h1>
+<form method="get" style="margin-bottom:12px">
+  {{ form.as_p }}
+  <button type="submit">Apply filters</button>
+  <a href="{% url 'property:reports_csv' %}?{{ request.GET.urlencode }}" style="margin-left:12px">Download CSV</a>
+  <a href="{% url 'property:reports_pdf' %}?{{ request.GET.urlencode }}" style="margin-left:8px">Download PDF</a>
+  <a href="{% url 'property:reports_xlsx' %}?{{ request.GET.urlencode }}" style="margin-left:8px">Download Excel</a>
+</form>
+<table class="property-table">
+  <thead>
+    <tr>
+      <th>Asset</th><th>From</th><th>To</th>
+      <th>Requested</th><th>Director</th><th>Recipient</th>
+      <th>Condition before</th><th>Condition on receipt</th>
+      <th>Completed</th><th>Status</th>
+    </tr>
+  </thead>
+  <tbody>{% for r in rows %}
+    <tr>
+      <td><a href="{% url 'property:relocation_detail' r.pk %}">{{ r.asset.asset_number }}</a></td>
+      <td>{{ r.origin_area.code }}</td>
+      <td>{{ r.destination_area.code }}</td>
+      <td>{{ r.submitted_at }}</td>
+      <td>{{ r.approved_by.username|default:"—" }} ({{ r.get_status_display }})</td>
+      <td>{{ r.receiving_attendant.username }}</td>
+      <td>{{ r.get_condition_before_display }}</td>
+      <td>{{ r.get_condition_at_receipt_display|default:"—" }}</td>
+      <td>{{ r.completed_at|default:"—" }}</td>
+      <td><span class="status-badge status-{{ r.status }}">{{ r.get_status_display }}</span></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="10" class="muted">No rows match.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

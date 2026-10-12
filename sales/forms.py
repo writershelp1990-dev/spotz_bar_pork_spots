@@ -1,3 +1,4 @@
+from django.conf import settings
 from decimal import Decimal, InvalidOperation
 import re
 import json
@@ -33,6 +34,7 @@ class ProductForm(forms.ModelForm):
             "size_value",
             "size_unit",
             "category",
+            "operating_points",
             "product_type",
             "purchase_unit",
             "selling_unit",
@@ -48,6 +50,10 @@ class ProductForm(forms.ModelForm):
             is_active=True
         ).select_related("parent")
         self.fields["category"].label_from_instance = lambda obj: obj.full_path
+        self.fields["operating_points"].queryset = OperatingPoint.objects.filter(
+            is_active=True
+        ).order_by("code")
+        self.fields["operating_points"].required = False
         self.fields["purchase_unit"].queryset = UnitOfMeasure.objects.filter(
             is_active=True
         )
@@ -161,7 +167,12 @@ class CheckoutForm(forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['operating_point'].queryset = OperatingPoint.objects.filter(is_active=True)
-
+        if not settings.MPESA_STK_PUSH_ENABLED:
+            self.fields['payment_method'].choices = [
+                (value, label)
+                for value, label in Sale.PaymentMethod.choices
+                if value != Sale.PaymentMethod.MPESA.value
+            ]
     def clean(self):
         cleaned = super().clean()
         method = cleaned.get('payment_method')

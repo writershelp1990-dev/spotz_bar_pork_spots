@@ -1,0 +1,94 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+
+<h1>Property &amp; Assets</h1>
+<p class="muted">
+  {% if is_dir %}Director view — full visibility across all areas.{% else %}
+  You see assets in your authorized areas: {{ user_areas|join:", " }}.{% endif %}
+</p>
+
+<div class="dash-grid">
+  <a class="dash-card" href="{% url 'property:asset_list' %}">
+    <strong>{{ asset_count }}</strong>
+    <span class="muted">Assets</span>
+  </a>
+  <a class="dash-card" href="{% url 'property:check_list' %}">
+    <strong>{{ check_count }}</strong>
+    <span class="muted">Checks on record</span>
+  </a>
+  <a class="dash-card" href="{% url 'property:condition_list' %}?status=open">
+    <strong>{{ open_conditions }}</strong>
+    <span class="muted">Open condition reports</span>
+  </a>
+  <a class="dash-card" href="{% url 'property:new_item_list' %}?status=PENDING">
+    <strong>{{ pending_new_items }}</strong>
+    <span class="muted">New-item reports pending</span>
+  </a>
+  {% if is_dir %}
+    <a class="dash-card dash-card-warn" href="{% url 'property:approval_queue' %}">
+      <strong>{{ reloc_pending_dir }}</strong>
+      <span class="muted">Relocations awaiting your approval</span>
+    </a>
+    <a class="dash-card dash-card-error" href="{% url 'property:approval_queue' %}#exceptions">
+      <strong>{{ reloc_exceptions }}</strong>
+      <span class="muted">Transfer exceptions</span>
+    </a>
+  {% else %}
+    <a class="dash-card dash-card-info" href="{% url 'property:relocation_list' %}">
+      <strong>{{ reloc_awaiting_me }}</strong>
+      <span class="muted">Transfers awaiting your receipt</span>
+    </a>
+  {% endif %}
+</div>
+
+<h2>Recently updated assets</h2>
+<table class="property-table">
+  <thead><tr><th>Asset #</th><th>Name</th><th>Area</th><th>Condition</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for a in recent_assets %}
+    <tr>
+      <td><a href="{% url 'property:asset_detail' a.pk %}">{{ a.asset_number }}</a></td>
+      <td>{{ a.name }}</td>
+      <td>{{ a.current_area.code }}</td>
+      <td>{{ a.get_condition_display }}</td>
+      <td><span class="status-badge">{{ a.get_lifecycle_status_display }}</span></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5" class="muted">No assets visible to you yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Recent condition reports</h2>
+<table class="property-table">
+  <thead><tr><th>Asset</th><th>Area</th><th>Reported</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for c in recent_conditions %}
+    <tr>
+      <td><a href="{% url 'property:asset_detail' c.asset.pk %}">{{ c.asset.asset_number }}</a> — {{ c.asset.name }}</td>
+      <td>{{ c.area.code }}</td>
+      <td>{{ c.get_condition_reported_display }}</td>
+      <td><span class="status-badge">{{ c.get_status_display }}</span></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="muted">No condition reports.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<style>
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:16px 0}
+.dash-card{display:block;padding:14px 16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;
+  text-decoration:none;color:inherit;transition:transform .08s ease,box-shadow .08s ease,background .08s ease}
+.dash-card:hover{background:#f3f4f6;box-shadow:0 2px 6px rgba(0,0,0,.06);transform:translateY(-1px)}
+.dash-card strong{display:block;font-size:1.5em;line-height:1.2;margin-bottom:2px}
+.dash-card .muted{font-size:.9em}
+.dash-card-warn{background:#fef3c7;border-color:#fcd34d}
+.dash-card-warn:hover{background:#fde68a}
+.dash-card-error{background:#fee2e2;border-color:#fca5a5}
+.dash-card-error:hover{background:#fecaca}
+.dash-card-info{background:#dbeafe;border-color:#93c5fd}
+.dash-card-info:hover{background:#bfdbfe}
+</style>
+
+{% endblock %}

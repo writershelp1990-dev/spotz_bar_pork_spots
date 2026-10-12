@@ -327,3 +327,109 @@ class MpesaPaymentAllocation(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
 
+
+
+# ===========================================================================
+# SMART LOW-STOCK NOTIFICATIONS
+# ===========================================================================
+class StockAlertRule(models.Model):
+    """Per-product, per-operating-point low-stock thresholds."""
+    product = models.ForeignKey(
+        "catalog.Product", on_delete=models.PROTECT, related_name="stock_alert_rules",
+    )
+    operating_point = models.ForeignKey(
+        "accounts.OperatingPoint", on_delete=models.PROTECT, related_name="stock_alert_rules",
+    )
+    minimum_quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    target_quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="stock_alert_rules_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "operating_point"],
+                name="unique_alert_rule_product_point",
+            ),
+            models.CheckConstraint(
+                condition=Q(minimum_quantity__gte=0),
+                name="alert_rule_minimum_nonnegative",
+            ),
+            models.CheckConstraint(
+                condition=Q(target_quantity__gt=models.F("minimum_quantity")),
+                name="alert_rule_target_above_minimum",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.product} @ {self.operating_point} (min {self.minimum_quantity})"
+
+
+class StockAlert(models.Model):
+    """One row per active shortage. Resolved rows kept for history."""
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        RESOLVED = "RESOLVED", "Resolved"
+
+    rule = models.ForeignKey(
+        StockAlertRule, on_delete=models.PROTECT, related_name="alerts",
+    )
+    product = models.ForeignKey(
+        "catalog.Product", on_delete=models.PROTECT, related_name="stock_alerts",
+    )
+    operating_point = models.ForeignKey(
+        "accounts.OperatingPoint", on_delete=models.PROTECT, related_name="stock_alerts",
+    )
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.ACTIVE)
+    triggered_at = models.DateTimeField(auto_now_add=True)
+    triggered_balance = models.DecimalField(max_digits=14, decimal_places=3)
+    minimum_at_trigger = models.DecimalField(max_digits=14, decimal_places=3)
+    target_at_trigger = models.DecimalField(max_digits=14, decimal_places=3)
+    last_notified_at = models.DateTimeField(null=True, blank=True)
+    next_reminder_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_balance = models.DecimalField(
+        max_digits=14, decimal_places=3, null=True, blank=True,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["product", "operating_point"],
+                condition=Q(status="ACTIVE"),
+                name="unique_active_alert_per_product_point",
+            ),
+        ]
+        ordering = ["-triggered_at", "-id"]
+        indexes = [
+            models.Index(fields=["status", "next_reminder_at"], name="alert_status_next_idx"),
+        ]
+
+    def __str__(self):
+        return f"[{self.status}] {self.product} @ {self.operating_point}"
+
+
+class StockAlertNotification(models.Model):
+    """Transient per-user pop-up. Deleted when acknowledged."""
+    alert = models.ForeignKey(
+        StockAlert, on_delete=models.CASCADE, related_name="notifications",
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="stock_alert_notifications",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["alert", "recipient"],
+                name="unique_alert_notification_per_user",
+            ),
+        ]
+        ordering = ["-created_at"]

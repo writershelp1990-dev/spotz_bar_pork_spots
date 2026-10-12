@@ -1,0 +1,65 @@
+<div id="low-stock-container" aria-live="polite"></div>
+<script>
+(function () {
+  const container = document.getElementById("low-stock-container");
+  const shown = new Set();
+  function getCSRFToken() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : "";
+  }
+  function render(alert) {
+    if (shown.has(alert.id)) return;
+    shown.add(alert.id);
+    const el = document.createElement("div");
+    el.className = "low-stock-popup";
+    el.setAttribute("role", "alertdialog");
+    el.innerHTML =
+      '<div class="low-stock-popup__title">LOW STOCK</div>' +
+      '<div class="low-stock-popup__body">' +
+      '<strong>' + alert.product_line + '</strong>' +
+      '<div class="muted">' + (alert.category || "") + ' &mdash; ' + alert.operating_point + '</div>' +
+      '<div>Stock: <strong>' + alert.current + ' ' + alert.unit + '</strong>' +
+      ' &middot; Minimum: ' + alert.minimum +
+      ' &middot; Target: ' + alert.target + '</div>' +
+      '<div>Suggested replenishment: <strong>' + alert.suggested + ' ' + alert.unit + '</strong></div>' +
+      '<div class="muted small">Raised ' + new Date(alert.triggered_at).toLocaleString() + '</div>' +
+      '</div>' +
+      '<button class="low-stock-popup__close" aria-label="Close">Acknowledge</button>';
+    el.querySelector(".low-stock-popup__close").addEventListener("click", async () => {
+      try {
+        await fetch("/sales/api/low-stock/" + alert.id + "/ack/", {
+          method: "POST",
+          headers: { "X-CSRFToken": getCSRFToken(), "X-Requested-With": "XMLHttpRequest" },
+          credentials: "same-origin",
+        });
+      } catch (e) {}
+      el.remove();
+    });
+    container.appendChild(el);
+  }
+  async function poll() {
+    try {
+      const res = await fetch("/sales/api/low-stock/pending/", {
+        credentials: "same-origin",
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        for (const alert of data.alerts) render(alert);
+      }
+    } catch (e) {}
+  }
+  poll();
+  setInterval(poll, 60000);
+})();
+</script>
+<style>
+.low-stock-popup { position: fixed; right: 16px; bottom: 16px; z-index: 9999;
+  max-width: 420px; background: #fff7e6; border: 2px solid #d97706;
+  border-radius: 8px; padding: 14px 16px; box-shadow: 0 6px 24px rgba(0,0,0,.18); }
+.low-stock-popup__title { color: #b45309; font-weight: 700; letter-spacing: .04em; margin-bottom: 6px; }
+.low-stock-popup__close { margin-top: 10px; padding: 6px 12px; border: 0; border-radius: 6px;
+  background: #d97706; color: white; cursor: pointer; font-weight: 600; }
+.low-stock-popup .muted { color: #6b7280; }
+.low-stock-popup .small { font-size: .85em; }
+</style>

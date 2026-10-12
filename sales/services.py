@@ -1,8 +1,11 @@
 import json
+from .low_stock import evaluate_after_stock_change
+
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from uuid import uuid4
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -89,11 +92,22 @@ def receive_stock(*, user, product, operating_point, quantity, reference="", rea
         changes={"product": product.name, "quantity_delta": str(quantity),
                  "balance_after": str(balance.quantity), "reference": reference}
     )
+    evaluate_after_stock_change(
+        product=product,
+        operating_point=operating_point,
+        actor=user,
+    )
+
     return movement
 
 @transaction.atomic
 def checkout(*, user, operating_point, payment_method, amount_tendered, items_json):
     check_point_permission(user, operating_point)
+    if payment_method == Sale.PaymentMethod.MPESA and not settings.MPESA_STK_PUSH_ENABLED:
+        raise ValidationError(
+            "STK Push is disabled until the till is registered and integration is configured."
+        )
+
     now = timezone.now()
     business_day = BusinessDay.objects.select_for_update().filter(
         status=BusinessDay.Status.OPEN
@@ -193,6 +207,11 @@ def checkout(*, user, operating_point, payment_method, amount_tendered, items_js
                 )
             balance.quantity -= qty
             balance.save(update_fields=["quantity", "updated_at"])
+            evaluate_after_stock_change(
+                product=product,
+                operating_point=operating_point,
+                actor=user,
+            )
         else:
             balance = None
 

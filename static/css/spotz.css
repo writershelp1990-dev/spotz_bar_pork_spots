@@ -495,7 +495,7 @@ textarea {
     opacity: .8;
 }
 /* =========================================================
-   SPOTZ — MANAGE STAFF
+   SPOTZ â€” MANAGE STAFF
    Premium colourful management interface
    ========================================================= */
 
@@ -1245,7 +1245,7 @@ textarea {
 }
 
 /* =========================================================
-   ROLE MANAGEMENT — PREMIUM COMMAND CENTER
+   ROLE MANAGEMENT â€” PREMIUM COMMAND CENTER
    Visual only. No authorization or workflow logic.
    ========================================================= */
 
@@ -2054,7 +2054,7 @@ textarea {
 }
 
 /* =========================================================
-   ROLE FORM — PREMIUM ROLE CONFIGURATION CENTER
+   ROLE FORM â€” PREMIUM ROLE CONFIGURATION CENTER
    Visual only. Existing Django form logic preserved.
    ========================================================= */
 
@@ -3262,7 +3262,7 @@ textarea {
 }
 
 /* ============================================================
-   SPOTZ OPERATING POINTS — PREMIUM VISUAL REDESIGN
+   SPOTZ OPERATING POINTS â€” PREMIUM VISUAL REDESIGN
    Presentation only
    ============================================================ */
 
@@ -8281,7 +8281,7 @@ textarea {
 }
 
 /* ============================================================
-   SPOTZ INVITE STAFF — PROFESSIONAL COLOURFUL REDESIGN
+   SPOTZ INVITE STAFF â€” PROFESSIONAL COLOURFUL REDESIGN
    Scoped to .invite-page
    ============================================================ */
 
@@ -9511,5 +9511,734 @@ textarea {
     .staff-detail-list > div {
         grid-template-columns: 1fr;
         gap: 0.25rem;
+    }
+}
+
+/* =========================================================
+   SPOTZ DASHBOARD â€” premium operations interface
+   Scoped to .spotz-dashboard to protect other pages.
+   ========================================================= */
+.spotz-dashboard {
+    --sd-bg: #101119;
+    --sd-panel: #171923;
+    --sd-muted: #9b9eaf;
+    --sd-gold: #f6c453;
+    color: #f5f5fa;
+    width: 100%;
+    max-width: 1500px;
+    margin: 0 auto;
+    padding-bottom: 12px;
+}
+.spotz-dashboard * { box-sizing: border-box; }
+.spotz-dashboard .sd-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 300px;
+    padding: clamp(25px, 4vw, 48px);
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 25px;
+    background:
+        radial-gradient(ellipse at 82% 20%, rgba(132,89,246,.25), transparent 35%),
+        radial-gradient(ellipse at 8% 100%, rgba(246,196,83,.12), transparent 36%),
+        linear-gradient(125deg,#1d1e2b 0%,#13141d 62%,#191523 100%);
+    box-shadow: 0 24px 65px rgba(0,0,0,.23);
+}
+.spotz-dashboard .sd-hero-copy { position: relative; z-index: 2; max-width: 700px; }
+.spotz-dashboard .sd-kicker,
+.spotz-dashboard .sd-section-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--sd-gold);
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: .17em;
+    text-transform: uppercase;
+}
+.spotz-dashboard .sd-kicker-dot,
+.spotz-dashboard .sd-live > span,
+.spotz-dashboard .sd-state > span {
+    width: 7px; height: 7px; border-radius: 50%; background: #44e0a0;
+    box-shadow: 0 0 13px rgba(68,224,160,.55);
+}
+.spotz-dashboard .sd-hero h2 {
+    margin: 19px 0 0;
+    font-size: clamp(31px,4.2vw,54px);
+    line-height: 1.07;
+    letter-spacing: -.045em;
+    font-weight: 850;
+}
+.spotz-dashboard .sd-hero h2 span {
+    color: #a7a0bc;
+    background: linear-gradient(90deg,#c6bfd8,#8e91a8);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.spotz-dashboard .sd-hero p {
+    max-width: 580px;
+    margin: 18px 0 0;
+    color: #b1b2c1;
+    font-size: 13px;
+    line-height: 1.8;
+}
+.spotz-dashboard .sd-hero-tags { display:flex; flex-wrap:wrap; gap:8px; margin-top:22px; }
+.spotz-dashboard .sd-hero-tags span {
+    padding: 7px 11px; border: 1px solid rgba(255,255,255,.1);
+    border-radius: 99px; background: rgba(255,255,255,.035);
+    color: #d3d3df; font-size: 10px; font-weight: 650;
+}
+.spotz-dashboard .sd-hero-art {
+    position: absolute; right: 3%; top: 0; bottom: 0; width: 34%;
+    display:flex; align-items:center; justify-content:center; pointer-events:none;
+}
+.spotz-dashboard .sd-orbit {
+    position:absolute; width:240px; height:240px; border-radius:50%;
+    border:1px solid rgba(246,196,83,.15);
+}
+.spotz-dashboard .sd-orbit-one { transform:rotate(32deg) scaleX(1.28); }
+.spotz-dashboard .sd-orbit-two { transform:rotate(-34deg) scaleX(1.28); border-color:rgba(167,139,250,.2); }
+.spotz-dashboard .sd-hero-monogram {
+    display:flex; align-items:center; justify-content:center;
+    width:135px; height:135px; border-radius:38px;
+    transform:rotate(-8deg);
+    border:1px solid rgba(255,255,255,.15);
+    background:linear-gradient(145deg,rgba(246,196,83,.2),rgba(132,89,246,.18));
+    box-shadow:0 22px 60px rgba(0,0,0,.3), inset 0 1px rgba(255,255,255,.12);
+    font-size:82px; font-weight:900; letter-spacing:-.09em; color:#f7f0df;
+}
+.spotz-dashboard .sd-hero-monogram span { color:var(--sd-gold); }
+.spotz-dashboard .sd-art-label {
+    position:absolute; bottom:25px; right:10px; color:#9d9aaa;
+    font-size:8px; font-weight:800; letter-spacing:.2em;
+}
+.spotz-dashboard .sd-section-heading {
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:16px; margin:29px 2px 15px;
+}
+.spotz-dashboard .sd-section-heading h3,
+.spotz-dashboard .sd-business-heading h3 {
+    margin:6px 0 0; font-size:20px; letter-spacing:-.025em; font-weight:800;
+}
+.spotz-dashboard .sd-live {
+    display:inline-flex; align-items:center; gap:8px; padding:8px 11px;
+    border:1px solid rgba(68,224,160,.16); border-radius:99px;
+    color:#8eeac2; background:rgba(68,224,160,.055);
+    font-size:9px; font-weight:800; letter-spacing:.08em; white-space:nowrap;
+}
+.spotz-dashboard .sd-live > span { width:6px; height:6px; }
+.spotz-dashboard .sd-operations {
+    display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:15px;
+}
+.spotz-dashboard .sd-operation {
+    --sd-accent:#f6c453;
+    position:relative; overflow:hidden; min-width:0; padding:20px;
+    border:1px solid color-mix(in srgb,var(--sd-accent) 24%,transparent);
+    border-radius:19px;
+    background:linear-gradient(145deg,#1b1d28,#14151d 82%);
+    transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;
+}
+.spotz-dashboard .sd-operation::before {
+    content:""; position:absolute; top:0; left:18px; right:18px; height:2px;
+    background:linear-gradient(90deg,transparent,var(--sd-accent),transparent); opacity:.8;
+}
+.spotz-dashboard .sd-operation:hover {
+    transform:translateY(-4px);
+    border-color:color-mix(in srgb,var(--sd-accent) 50%,transparent);
+    box-shadow:0 15px 35px rgba(0,0,0,.2);
+}
+.spotz-dashboard .sd-bar { --sd-accent:#f6c453; }
+.spotz-dashboard .sd-butchery { --sd-accent:#ff7189; }
+.spotz-dashboard .sd-choma { --sd-accent:#b49aff; }
+.spotz-dashboard .sd-kitchen { --sd-accent:#51d9f3; }
+.spotz-dashboard .sd-op-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.spotz-dashboard .sd-op-icon {
+    display:flex; align-items:center; justify-content:center; width:37px; height:37px;
+    border-radius:12px; border:1px solid color-mix(in srgb,var(--sd-accent) 25%,transparent);
+    color:var(--sd-accent); background:color-mix(in srgb,var(--sd-accent) 10%,transparent);
+    font-size:17px; font-weight:900;
+}
+.spotz-dashboard .sd-op-index { color:#777b8d; font-size:9px; font-weight:800; letter-spacing:.08em; }
+.spotz-dashboard .sd-op-label {
+    display:block; margin-top:22px; color:var(--sd-accent);
+    font-size:9px; font-weight:850; letter-spacing:.17em;
+}
+.spotz-dashboard .sd-operation h4 { margin:7px 0 0; font-size:17px; font-weight:800; letter-spacing:-.025em; }
+.spotz-dashboard .sd-operation p { min-height:40px; margin:8px 0 17px; color:#9b9eaf; font-size:11px; line-height:1.7; }
+.spotz-dashboard .sd-op-line { height:1px; background:linear-gradient(90deg,var(--sd-accent),rgba(255,255,255,.04)); opacity:.55; }
+.spotz-dashboard .sd-op-foot {
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    margin-top:13px; color:#7e8192; font-size:8px; font-weight:800; letter-spacing:.1em;
+}
+.spotz-dashboard .sd-op-foot span { color:var(--sd-accent); font-size:13px; }
+.spotz-dashboard .sd-business-day {
+    display:grid; grid-template-columns:minmax(180px,.8fr) minmax(200px,1fr) auto;
+    align-items:center; gap:22px; margin-top:20px; padding:24px;
+    border:1px solid rgba(246,196,83,.18); border-radius:21px;
+    background:radial-gradient(ellipse at 10% 0%,rgba(246,196,83,.08),transparent 42%),linear-gradient(145deg,#1b1d27,#13141c);
+    box-shadow:0 16px 42px rgba(0,0,0,.16);
+}
+.spotz-dashboard .sd-business-heading { display:flex; align-items:center; gap:13px; }
+.spotz-dashboard .sd-business-symbol {
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    width:45px; height:45px; border-radius:14px; color:var(--sd-gold);
+    border:1px solid rgba(246,196,83,.2); background:rgba(246,196,83,.09); font-size:25px;
+}
+.spotz-dashboard .sd-business-heading h3 { font-size:18px; }
+.spotz-dashboard .sd-business-heading p,
+.spotz-dashboard .sd-business-status p {
+    margin:7px 0 0; color:#989bac; font-size:11px; line-height:1.65;
+}
+.spotz-dashboard .sd-state {
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:9px; font-weight:850; letter-spacing:.1em;
+}
+.spotz-dashboard .sd-state > span { width:6px; height:6px; }
+.spotz-dashboard .sd-state-open { color:#65e2ad; }
+.spotz-dashboard .sd-state-closed { color:#b6b6c5; }
+.spotz-dashboard .sd-state-closed > span { background:#8d91a3; box-shadow:none; }
+.spotz-dashboard .sd-state-new { color:var(--sd-gold); }
+.spotz-dashboard .sd-state-new > span { background:var(--sd-gold); box-shadow:none; }
+.spotz-dashboard .sd-business-status h4 { margin:8px 0 0; font-size:22px; letter-spacing:-.03em; }
+.spotz-dashboard .sd-warning {
+    display:flex; flex-direction:column; gap:4px; margin-top:12px; padding:10px 12px;
+    border:1px solid rgba(246,196,83,.2); border-radius:10px;
+    background:rgba(246,196,83,.07); color:#e7cc8b; font-size:10px; line-height:1.5;
+}
+.spotz-dashboard .sd-warning strong { color:#ffdc7d; }
+.spotz-dashboard .sd-business-actions { display:flex; flex-wrap:wrap; gap:9px; justify-content:flex-end; }
+.spotz-dashboard .sd-btn {
+    display:inline-flex; align-items:center; justify-content:center; gap:12px;
+    min-height:41px; padding:0 14px; border-radius:11px;
+    text-decoration:none !important; font-size:10px; font-weight:800;
+    transition:transform .18s ease,filter .18s ease;
+}
+.spotz-dashboard .sd-btn:hover { transform:translateY(-2px); filter:brightness(1.08); }
+.spotz-dashboard .sd-btn-primary {
+    color:#201b10 !important; background:linear-gradient(135deg,#ffda7c,#f2b93e);
+    box-shadow:0 7px 18px rgba(246,196,83,.12);
+}
+.spotz-dashboard .sd-btn-primary span { font-size:16px; }
+.spotz-dashboard .sd-btn-secondary {
+    color:#e4e4ee !important; border:1px solid rgba(255,255,255,.13); background:rgba(255,255,255,.035);
+}
+.spotz-dashboard .sd-btn:focus-visible { outline:2px solid #fff; outline-offset:3px; }
+.spotz-dashboard .sd-footer-note {
+    display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;
+    margin-top:25px; color:#777b8d; font-size:8px; font-weight:750; letter-spacing:.14em; text-align:center;
+}
+.spotz-dashboard .sd-footer-note span { color:var(--sd-gold); font-weight:950; }
+@media (max-width:1100px) {
+    .spotz-dashboard .sd-operations { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .spotz-dashboard .sd-business-day { grid-template-columns:1fr 1fr; }
+    .spotz-dashboard .sd-business-actions { grid-column:1 / -1; justify-content:flex-start; }
+    .spotz-dashboard .sd-hero-art { right:-4%; opacity:.72; }
+}
+@media (max-width:650px) {
+    .spotz-dashboard .sd-hero { min-height:0; padding:25px 21px; border-radius:19px; }
+    .spotz-dashboard .sd-hero-art { right:-100px; width:220px; opacity:.22; }
+    .spotz-dashboard .sd-hero-monogram { width:105px; height:105px; font-size:65px; }
+    .spotz-dashboard .sd-orbit { width:170px; height:170px; }
+    .spotz-dashboard .sd-art-label { display:none; }
+    .spotz-dashboard .sd-hero h2 { font-size:clamp(30px,8vw,42px); }
+    .spotz-dashboard .sd-hero p { font-size:12px; }
+    .spotz-dashboard .sd-section-heading { align-items:flex-start; flex-direction:column; margin-top:24px; }
+    .spotz-dashboard .sd-operations { grid-template-columns:1fr 1fr; gap:10px; }
+    .spotz-dashboard .sd-operation { padding:15px 13px; border-radius:15px; }
+    .spotz-dashboard .sd-op-index { font-size:8px; }
+    .spotz-dashboard .sd-operation h4 { font-size:14px; }
+    .spotz-dashboard .sd-operation p { min-height:54px; font-size:10px; }
+    .spotz-dashboard .sd-op-foot { font-size:7px; letter-spacing:.04em; }
+    .spotz-dashboard .sd-business-day { grid-template-columns:1fr; gap:18px; padding:19px; }
+    .spotz-dashboard .sd-business-actions { grid-column:auto; justify-content:flex-start; }
+    .spotz-dashboard .sd-btn { flex:1 1 auto; }
+}
+@media (max-width:360px) {
+    .spotz-dashboard .sd-operations { grid-template-columns:1fr; }
+    .spotz-dashboard .sd-operation p { min-height:0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .spotz-dashboard .sd-operation,
+    .spotz-dashboard .sd-btn { transition:none; }
+    .spotz-dashboard .sd-operation:hover,
+    .spotz-dashboard .sd-btn:hover { transform:none; }
+}
+
+/* =========================================================
+   SPOTZ SIDEBAR REFINEMENT â€” navigation and branding
+   Existing links, routes and permission checks are preserved.
+   ========================================================= */
+.app-shell > .sidebar {
+    --sb-gold: #f6c453;
+    --sb-muted: #9296aa;
+    --sb-line: rgba(255,255,255,.075);
+    width: 270px;
+    padding: 22px 15px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #39394b transparent;
+    background:
+        radial-gradient(ellipse at 0% 0%, rgba(246,196,83,.09), transparent 30%),
+        linear-gradient(180deg, #171821 0%, #11121a 55%, #0e0f16 100%);
+    border-right: 1px solid rgba(255,255,255,.08);
+    box-shadow: 12px 0 40px rgba(0,0,0,.14);
+    z-index: 1000;
+}
+.app-shell > .sidebar .brand {
+    flex: 0 0 auto;
+    gap: 12px;
+    min-height: 72px;
+    margin: 0;
+    padding: 3px 7px 18px;
+    align-items: center;
+}
+.app-shell > .sidebar .brand-logo-wrap {
+    flex: 0 0 51px;
+    width: 51px;
+    height: 51px;
+    padding: 3px;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid rgba(246,196,83,.45);
+    background: linear-gradient(145deg,rgba(246,196,83,.2),rgba(246,196,83,.035));
+    box-shadow: 0 5px 22px rgba(246,196,83,.1);
+}
+.app-shell > .sidebar .brand-logo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+    object-fit: cover;
+}
+.app-shell > .sidebar .brand-text { min-width: 0; gap: 3px; }
+.app-shell > .sidebar .brand-name {
+    color: #fff;
+    font-size: 20px;
+    font-weight: 950;
+    line-height: 1.1;
+    letter-spacing: .11em;
+}
+.app-shell > .sidebar .brand-subtitle {
+    margin-top: 2px;
+    color: #c0b7a0;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.5;
+    letter-spacing: .13em;
+}
+.app-shell > .sidebar .sidebar-divider {
+    flex: 0 0 auto;
+    height: 1px;
+    margin: 0 6px 15px;
+    background: linear-gradient(90deg,rgba(246,196,83,.35),rgba(255,255,255,.055),transparent);
+}
+.app-shell > .sidebar .main-nav {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    min-width: 0;
+    padding: 0 1px 10px;
+}
+.app-shell > .sidebar .main-nav > a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 42px;
+    margin: 0;
+    padding: 10px 11px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    background: transparent;
+    color: #c3c5d2;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.4;
+    transition: background .18s ease, color .18s ease, border-color .18s ease, transform .18s ease;
+}
+.app-shell > .sidebar .main-nav > a > span:last-child {
+    min-width: 0;
+}
+.app-shell > .sidebar .main-nav > a .nav-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(255,255,255,.055);
+    border-radius: 9px;
+    background: rgba(255,255,255,.045);
+    color: #c4b5fd;
+    font-size: 16px;
+    line-height: 1;
+    transition: inherit;
+}
+.app-shell > .sidebar .main-nav > a:hover {
+    color: #fff;
+    border-color: rgba(255,255,255,.07);
+    background: rgba(255,255,255,.055);
+    transform: translateX(2px);
+}
+.app-shell > .sidebar .main-nav > a:hover .nav-icon {
+    background: rgba(246,196,83,.11);
+    border-color: rgba(246,196,83,.18);
+    color: var(--sb-gold);
+}
+.app-shell > .sidebar .main-nav > a.active {
+    color: #ffe6a0;
+    border-color: rgba(246,196,83,.2);
+    background: linear-gradient(100deg,rgba(246,196,83,.17),rgba(246,196,83,.055));
+    box-shadow: inset 3px 0 0 var(--sb-gold), 0 5px 15px rgba(0,0,0,.09);
+    font-weight: 800;
+}
+.app-shell > .sidebar .main-nav > a.active .nav-icon {
+    color: #17130a;
+    border-color: transparent;
+    background: linear-gradient(145deg,#ffe49a,#edb63d);
+}
+.app-shell > .sidebar .main-nav > a:focus-visible,
+.app-shell > .sidebar .logout-button:focus-visible {
+    outline: 2px solid var(--sb-gold);
+    outline-offset: 3px;
+}
+.app-shell > .sidebar .main-nav > .nav-section {
+    margin: 15px 0 3px;
+    padding: 0 10px 5px;
+    color: #777c91;
+    font-size: 9px;
+    font-weight: 850;
+    letter-spacing: .17em;
+    line-height: 1.5;
+}
+.app-shell > .sidebar .main-nav > .nav-section:not(:first-child) {
+    border-top: 1px solid rgba(255,255,255,.045);
+    padding-top: 13px;
+}
+.app-shell > .sidebar .main-nav > a:nth-of-type(2) .nav-icon,
+.app-shell > .sidebar .main-nav > a:nth-of-type(3) .nav-icon {
+    color: #f6c453;
+}
+.app-shell > .sidebar .main-nav > a:nth-of-type(4) .nav-icon,
+.app-shell > .sidebar .main-nav > a:nth-of-type(5) .nav-icon,
+.app-shell > .sidebar .main-nav > a:nth-of-type(6) .nav-icon {
+    color: #ff8da1;
+}
+.app-shell > .sidebar .main-nav > a:nth-of-type(7) .nav-icon,
+.app-shell > .sidebar .main-nav > a:nth-of-type(8) .nav-icon {
+    color: #55d8f1;
+}
+.app-shell > .sidebar .main-nav > a:nth-of-type(9) .nav-icon,
+.app-shell > .sidebar .main-nav > a:nth-of-type(10) .nav-icon,
+.app-shell > .sidebar .main-nav > a:nth-of-type(11) .nav-icon {
+    color: #b7a1ff;
+}
+.app-shell > .sidebar .main-nav > a.feature-unavailable {
+    color: #85899b;
+}
+.app-shell > .sidebar .main-nav > a.feature-unavailable .nav-icon {
+    color: #81869a;
+    background: rgba(255,255,255,.025);
+}
+.app-shell > .sidebar .main-nav > a.feature-unavailable:hover {
+    transform: none;
+    background: rgba(255,255,255,.025);
+}
+.app-shell > .sidebar .main-nav > a[aria-disabled="true"] {
+    cursor: not-allowed;
+}
+.app-shell > .sidebar .sidebar-logout-form {
+    margin: 17px 0 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--sb-line);
+}
+.app-shell > .sidebar .logout-button {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 11px;
+    width: 100%;
+    min-height: 43px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255,113,137,.15);
+    border-radius: 11px;
+    background: rgba(255,113,137,.055);
+    color: #ff9baa;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 750;
+    text-align: left;
+    cursor: pointer;
+    transition: background .18s ease, border-color .18s ease;
+}
+.app-shell > .sidebar .logout-button::before {
+    content: "â†ª";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 27px;
+    height: 27px;
+    border-radius: 8px;
+    background: rgba(255,113,137,.1);
+    font-size: 17px;
+}
+.app-shell > .sidebar .logout-button:hover {
+    background: rgba(255,113,137,.12);
+    border-color: rgba(255,113,137,.3);
+}
+.app-shell > .sidebar .sidebar-footer {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding: 13px 2px 0;
+    border-top: 1px solid rgba(255,255,255,.055);
+}
+.app-shell > .sidebar .security-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 11px;
+    border: 1px solid rgba(68,224,160,.12);
+    border-radius: 12px;
+    background: linear-gradient(110deg,rgba(68,224,160,.07),rgba(255,255,255,.018));
+}
+.app-shell > .sidebar .security-dot {
+    flex: 0 0 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #44e0a0;
+    box-shadow: 0 0 12px rgba(68,224,160,.55);
+}
+.app-shell > .sidebar .security-badge strong {
+    display: block;
+    color: #d8f8e9;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .1em;
+}
+.app-shell > .sidebar .security-badge small {
+    display: block;
+    margin-top: 4px;
+    color: #8c9e9a;
+    font-size: 10px;
+}
+@media (max-width: 900px) {
+    .app-shell > .sidebar {
+        width: 270px;
+        padding-top: 18px;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .app-shell > .sidebar .main-nav > a,
+    .app-shell > .sidebar .main-nav > a .nav-icon,
+    .app-shell > .sidebar .logout-button {
+        transition: none;
+    }
+}
+
+/* SPOTZ navigation polish â€” scoped to shared navigation */
+.sales-nav,
+.sales-navigation,
+.sales-links,
+nav.sales-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 22px;
+    padding: 12px 14px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+.sales-nav a,
+.sales-navigation a,
+.sales-links a,
+nav.sales-nav a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 13px;
+    border-radius: 9px;
+    color: #334155;
+    background: #f8fafc;
+    text-decoration: none !important;
+    font-size: 0.9rem;
+    font-weight: 650;
+    line-height: 1.4;
+    transition: background .18s ease, color .18s ease;
+}
+
+.sales-nav a:hover,
+.sales-navigation a:hover,
+.sales-links a:hover,
+nav.sales-nav a:hover {
+    color: #ffffff;
+    background: #0f766e;
+    text-decoration: none !important;
+}
+
+/* Sidebar links should remain separate, readable items */
+.app-shell > .sidebar a {
+    text-decoration: none !important;
+}
+
+.app-shell > .sidebar nav a,
+.app-shell > .sidebar .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 10px;
+    line-height: 1.45;
+}
+
+.app-shell > .sidebar nav a:hover,
+.app-shell > .sidebar .nav-link:hover {
+    text-decoration: none !important;
+}
+
+/* ==========================================================
+   SPOTZ ADD CATEGORY FORM POLISH
+   Scoped to the shared sales form page; no template changes.
+   ========================================================== */
+body:has(form select) .content-area .form-card {
+    max-width: 900px;
+}
+
+body:has(form select) form {
+    color: #19271f;
+}
+
+body:has(form select) form p {
+    margin-bottom: 21px;
+}
+
+body:has(form select) form label {
+    display: block;
+    margin-bottom: 8px;
+    color: #34483b;
+    font-weight: 700;
+}
+
+body:has(form select) form input[type="text"],
+body:has(form select) form select,
+body:has(form select) form textarea {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-height: 45px;
+    padding: 10px 12px;
+    color: #1c2b22;
+    background: #fbfdfb;
+    border: 1px solid #ccd9d0;
+    border-radius: 9px;
+    font: inherit;
+}
+
+body:has(form select) form select:focus,
+body:has(form select) form input:focus,
+body:has(form select) form textarea:focus {
+    outline: none;
+    border-color: #21805c;
+    box-shadow: 0 0 0 3px rgba(33, 128, 92, .12);
+}
+
+body:has(form select) form textarea {
+    min-height: 105px;
+    resize: vertical;
+}
+
+body:has(form select) form input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #176b4f;
+    vertical-align: middle;
+}
+
+body:has(form select) form button[type="submit"],
+body:has(form select) form input[type="submit"] {
+    min-height: 44px;
+    padding: 10px 24px;
+    color: #fff;
+    background: #176b4f;
+    border: 1px solid #176b4f;
+    border-radius: 9px;
+    font: inherit;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+body:has(form select) form button[type="submit"]:hover,
+body:has(form select) form input[type="submit"]:hover {
+    background: #10513b;
+}
+
+body:has(form select) form .helptext {
+    display: block;
+    margin-top: 7px;
+    color: #68786d;
+    font-size: .84rem;
+    line-height: 1.5;
+}
+
+body:has(form select) form ul.errorlist {
+    padding: 10px 14px;
+    color: #9b2525;
+    background: #fff1f1;
+    border: 1px solid #f1cccc;
+    border-radius: 8px;
+}
+/* SPOTZ sales quick navigation */
+.spotz-sales-quicknav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 22px;
+    padding: 12px 16px;
+    background: #f0f7f2;
+    border: 1px solid #d6e7da;
+    border-radius: 12px;
+}
+.spotz-sales-quicknav a {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    color: #176b3a;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: background-color .15s ease, color .15s ease;
+}
+.spotz-sales-quicknav a:hover,
+.spotz-sales-quicknav a:focus-visible {
+    background: #176b3a;
+    color: #fff;
+    text-decoration: none;
+}
+@media (max-width: 600px) {
+    .spotz-sales-quicknav {
+        gap: 6px;
+        padding: 10px;
+    }
+    .spotz-sales-quicknav a {
+        padding: 8px 9px;
     }
 }

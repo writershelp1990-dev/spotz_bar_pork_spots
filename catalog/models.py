@@ -177,6 +177,13 @@ class Product(models.Model):
         default=True,
     )
 
+    operating_points = models.ManyToManyField(
+        "accounts.OperatingPoint",
+        blank=True,
+        related_name="products",
+        help_text="Locations where this product is stocked, sold, or used.",
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True,
     )

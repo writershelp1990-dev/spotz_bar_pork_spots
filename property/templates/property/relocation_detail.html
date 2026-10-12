@@ -1,0 +1,44 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Relocation #{{ reloc.pk }}</h1>
+<p class="muted">
+  <span class="status-badge status-{{ reloc.status }}">{{ reloc.get_status_display }}</span>
+</p>
+
+<h2>Details</h2>
+<table class="property-table">
+  <tr><th>Asset</th><td><a href="{% url 'property:asset_detail' reloc.asset.pk %}">{{ reloc.asset.asset_number }} — {{ reloc.asset.name }}</a></td></tr>
+  <tr><th>Origin</th><td>{{ reloc.origin_area.code }}</td></tr>
+  <tr><th>Destination</th><td>{{ reloc.destination_area.code }}</td></tr>
+  <tr><th>Requested by</th><td>{{ reloc.requested_by.username }}</td></tr>
+  <tr><th>Submitted</th><td>{{ reloc.submitted_at }}</td></tr>
+  <tr><th>Reason</th><td>{{ reloc.reason }}</td></tr>
+  <tr><th>Condition before</th><td>{{ reloc.get_condition_before_display }}</td></tr>
+  <tr><th>Recipient</th><td>{{ reloc.receiving_attendant.username }}</td></tr>
+  {% if reloc.approved_by %}<tr><th>Director decision</th><td>{{ reloc.get_status_display }} by {{ reloc.approved_by.username }} at {{ reloc.approved_at }}<br>{{ reloc.director_decision_notes }}</td></tr>{% endif %}
+  {% if reloc.recipient_decision %}<tr><th>Recipient decision</th><td>{{ reloc.recipient_decision }} at {{ reloc.recipient_decided_at }}<br>{{ reloc.decline_reason }}</td></tr>{% endif %}
+  {% if reloc.condition_at_receipt %}<tr><th>Condition at receipt</th><td>{{ reloc.get_condition_at_receipt_display }}<br>{{ reloc.receipt_notes }}</td></tr>{% endif %}
+  {% if reloc.completed_at %}<tr><th>Completed</th><td>{{ reloc.completed_at }}</td></tr>{% endif %}
+</table>
+
+{% if approval_form %}
+  <h2>Director decision</h2>
+  <form method="post" action="{% url 'property:relocation_decide' reloc.pk %}">
+    {% csrf_token %}{{ approval_form.as_p }}<button type="submit">Record decision</button>
+  </form>
+{% endif %}
+
+{% if recipient_form %}
+  <h2>Your decision (recipient)</h2>
+  <form method="post" action="{% url 'property:relocation_recipient_decide' reloc.pk %}">
+    {% csrf_token %}{{ recipient_form.as_p }}<button type="submit">Submit</button>
+  </form>
+{% endif %}
+
+{% if reloc.recipient_decision == "ACCEPTED" and reloc.status == "APPROVED" %}
+  <h2>Confirm receipt</h2>
+  <form method="post" action="{% url 'property:relocation_confirm_receipt' reloc.pk %}">
+    {% csrf_token %}{{ receipt_form.as_p }}<button type="submit">Confirm receipt &amp; relocate</button>
+  </form>
+{% endif %}
+{% endblock %}

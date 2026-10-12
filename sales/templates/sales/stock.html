@@ -1,12 +1,108 @@
-{% extends "sales/base_sales.html" %}
+﻿{% extends "sales/base_sales.html" %}
 {% block sales_content %}
-<h1>Inventory by operating point</h1>
-<p><a href="{% url 'sales:stock_receive' %}">Receive stock</a></p>
-<table>
-<thead><tr><th>Operating point</th><th>Product</th><th>Quantity in selling units</th><th>Updated</th></tr></thead>
-<tbody>
-{% for b in balances %}
-<tr><td>{{ b.operating_point.name }}</td><td>{{ b.product.name }}</td><td>{{ b.quantity }} {{ b.product.selling_unit.abbreviation }}</td><td>{{ b.updated_at }}</td></tr>
-{% empty %}<tr><td colspan="4">No stock has been recorded yet. Record actual received quantities to establish balances.</td></tr>{% endfor %}
-</tbody></table>
+<style>
+.spotz-inventory-design { max-width:100%; color:#19271f; padding-bottom:28px; }
+.spotz-inventory-design h1 { margin:8px 0 8px; font-size:clamp(1.6rem,2.5vw,2.1rem); font-weight:800; letter-spacing:-.03em; }
+.spotz-inventory-design .inventory-intro { color:#66766b; margin:0 0 22px; }
+.spotz-inventory-design .inventory-actions { margin-bottom:22px; }
+.spotz-inventory-design .inventory-actions a { display:inline-flex; padding:10px 16px; color:#fff; background:#176b4f; border-radius:9px; font-weight:750; text-decoration:none; }
+.spotz-inventory-design .inventory-actions a:hover { background:#10513b; }
+.spotz-inventory-design .inventory-point { margin:0 0 28px; overflow:hidden; background:#fff; border:1px solid #dfe8e1; border-radius:14px; box-shadow:0 6px 22px rgba(25,48,35,.05); }
+.spotz-inventory-design .point-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; padding:18px 20px; background:#f0f6f1; border-bottom:1px solid #dfe8e1; }
+.spotz-inventory-design .point-heading h2 { margin:0; font-size:1.2rem; font-weight:800; }
+.spotz-inventory-design .point-summary { color:#596b60; font-size:.86rem; }
+.spotz-inventory-design .inventory-table-wrap { width:100%; overflow-x:auto; }
+.spotz-inventory-design table { width:100%; min-width:780px; border-collapse:separate; border-spacing:0; font-size:.9rem; }
+.spotz-inventory-design th { padding:13px 15px; color:#42544b; background:#f8faf8; border-bottom:1px solid #dfe8e1; font-size:.75rem; font-weight:800; text-align:left; white-space:nowrap; }
+.spotz-inventory-design td { padding:14px 15px; color:#354237; border-bottom:1px solid #edf1ee; vertical-align:middle; }
+.spotz-inventory-design tbody tr:last-child td { border-bottom:0; }
+.spotz-inventory-design tbody tr:hover { background:#f7faf8; }
+.spotz-inventory-design .product-name { font-weight:800; color:#19271f; }
+.spotz-inventory-design .product-detail { display:block; margin-top:4px; color:#6b7a70; font-size:.8rem; }
+.spotz-inventory-design .stock-quantity { font-weight:850; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.spotz-inventory-design .stock-zero { display:inline-flex; padding:5px 9px; color:#a12d28; background:#fff0ef; border-radius:7px; font-weight:800; }
+.spotz-inventory-design .stock-positive { display:inline-flex; padding:5px 9px; color:#176b4f; background:#eaf6ed; border-radius:7px; font-weight:800; }
+.spotz-inventory-design .stock-updated { color:#6b7a70; font-size:.82rem; white-space:nowrap; }
+.spotz-inventory-design .empty-state { padding:20px; color:#66766b; }
+@media(max-width:640px) {
+    .spotz-inventory-design .point-heading { padding:15px; }
+    .spotz-inventory-design th,.spotz-inventory-design td { padding:11px; }
+}
+</style>
+
+<div class="spotz-inventory-design">
+    <h1>Inventory by operating point</h1>
+    <p class="inventory-intro">Review every active product at each location, including items with no stock recorded yet.</p>
+    <div class="inventory-actions">
+        <a href="{% url 'sales:stock_receive' %}">+ Receive stock</a>
+    </div>
+
+    {% for section in inventory_sections %}
+    <section class="inventory-point">
+        <div class="point-heading">
+            <h2>{{ section.point.name }}</h2>
+            <div class="point-summary">
+                {{ section.product_count }} products
+                &nbsp;·&nbsp;
+                {{ section.zero_count }} with zero stock
+            </div>
+        </div>
+
+        <div class="inventory-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Product and description</th>
+                        <th>Product code</th>
+                        <th>Stock on hand</th>
+                        <th>Last stock update</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in section.rows %}
+                    <tr>
+                        <td>
+                            {% if row.product.category %}
+                                {{ row.product.category.name }}
+                            {% else %}
+                                <span class="product-detail">Uncategorised</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="product-name">{{ row.product.name }}</span>
+                            <span class="product-detail">
+                                {% if row.product.brand %}{{ row.product.brand }}{% endif %}
+                                {% if row.product.variety %}{% if row.product.brand %} · {% endif %}{{ row.product.variety }}{% endif %}
+                                {% if row.product.size_display %} · {{ row.product.size_display }}{% endif %}
+                                {% if row.product.packaging %} · {{ row.product.packaging }}{% endif %}
+                            </span>
+                        </td>
+                        <td>{{ row.product.code|default:"—" }}</td>
+                        <td>
+                            {% if row.is_zero %}
+                                <span class="stock-quantity stock-zero">0 {{ row.product.selling_unit.abbreviation }}</span>
+                            {% else %}
+                                <span class="stock-quantity stock-positive">{{ row.quantity|floatformat:3 }} {{ row.product.selling_unit.abbreviation }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="stock-updated">
+                            {% if row.updated_at %}
+                                {{ row.updated_at|date:"d M Y, H:i" }}
+                            {% else %}
+                                Not recorded
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="empty-state">No active products are registered yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% empty %}
+        <div class="inventory-point empty-state">No active operating points are configured.</div>
+    {% endfor %}
+</div>
 {% endblock %}

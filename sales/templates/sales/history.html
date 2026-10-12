@@ -1,11 +1,98 @@
 {% extends "sales/base_sales.html" %}
 {% block sales_content %}
-<h1>Sales history</h1>
-<table>
+<style>
+/* SPOTZ sales history: presentation only */
+.spotz-history-design { color:#172033; }
+.spotz-history-design .history-heading {
+    display:flex; flex-wrap:wrap; justify-content:space-between;
+    align-items:center; gap:14px; margin:8px 0 24px;
+}
+.spotz-history-design .history-heading h1 {
+    margin:0; font-size:clamp(1.6rem,3vw,2.15rem);
+    letter-spacing:-.04em; color:#102a43;
+}
+.spotz-history-design .history-heading p {
+    margin:7px 0 0; color:#64748b;
+}
+.spotz-history-design .history-status {
+    display:inline-flex; align-items:center; gap:8px;
+    padding:9px 13px; border:1px solid #bbf7d0;
+    background:#f0fdf4; color:#166534; border-radius:999px;
+    font-size:.82rem; font-weight:700;
+}
+.spotz-history-design .history-panel {
+    background:#fff; border:1px solid #e2e8f0;
+    border-radius:16px; overflow:hidden;
+    box-shadow:0 8px 24px rgba(15,23,42,.045);
+}
+.spotz-history-design .history-panel-head {
+    display:flex; justify-content:space-between; align-items:center;
+    flex-wrap:wrap; gap:10px; padding:19px 22px;
+    border-bottom:1px solid #e8edf3;
+}
+.spotz-history-design .history-panel-head h2 {
+    margin:0; font-size:1.05rem; color:#172033;
+}
+.spotz-history-design .history-panel-head p {
+    margin:5px 0 0; color:#64748b; font-size:.86rem;
+}
+.spotz-history-design .history-table-wrap { width:100%; overflow-x:auto; }
+.spotz-history-design table {
+    width:100%; min-width:850px; border-collapse:separate;
+    border-spacing:0; margin:0; background:#fff;
+}
+.spotz-history-design thead th {
+    padding:13px 17px; text-align:left; white-space:nowrap;
+    background:#f8fafc; color:#64748b; text-transform:uppercase;
+    letter-spacing:.055em; font-size:.72rem; font-weight:800;
+    border-bottom:1px solid #e2e8f0;
+}
+.spotz-history-design tbody td {
+    padding:15px 17px; color:#334155; font-size:.88rem;
+    border-bottom:1px solid #edf1f5; vertical-align:middle;
+}
+.spotz-history-design tbody tr:last-child td { border-bottom:0; }
+.spotz-history-design tbody tr:hover td { background:#f8fbff; }
+.spotz-history-design a {
+    color:#0f766e; font-weight:750; text-decoration:none;
+}
+.spotz-history-design a:hover { color:#115e59; text-decoration:underline; }
+.spotz-history-design .history-amount {
+    text-align:right; white-space:nowrap; font-weight:800;
+    color:#102a43; font-variant-numeric:tabular-nums;
+}
+.spotz-history-design .history-payment {
+    display:inline-flex; padding:5px 9px; border-radius:999px;
+    background:#eff6ff; color:#1d4ed8; font-size:.76rem;
+    font-weight:750; white-space:nowrap;
+}
+.spotz-history-design .history-payment.cash {
+    background:#ecfdf5; color:#047857;
+}
+.spotz-history-design .history-payment.other {
+    background:#f1f5f9; color:#475569;
+}
+.spotz-history-design .history-empty {
+    padding:40px 20px; text-align:center; color:#64748b;
+}
+@media(max-width:700px) {
+    .spotz-history-design .history-panel-head { padding:16px; }
+    .spotz-history-design .history-heading { margin-bottom:18px; }
+}
+</style>
+<div class="spotz-history-design">
+<div class="history-heading">
+  <div>
+    <h1>Sales history</h1>
+    <p>Review completed transactions and open receipts for full sale details.</p>
+  </div>
+  <span class="history-status">● Transaction register</span>
+</div><div class="history-panel"><div class="history-panel-head"><div><h2>Transaction records</h2><p>Newest sales appear first.</p></div></div><div class="history-table-wrap"><table>
 <thead><tr><th>Receipt</th><th>Date/time</th><th>Operating point</th><th>Cashier</th><th>Payment</th><th>Total (KES)</th></tr></thead>
 <tbody>
 {% for s in sales %}
 <tr><td><a href="{% url 'sales:receipt' s.pk %}">{{ s.sale_number }}</a></td><td>{{ s.sold_at }}</td><td>{{ s.operating_point.name }}</td><td>{{ s.cashier }}</td><td>{{ s.get_payment_method_display }}</td><td>{{ s.total }}</td></tr>
 {% empty %}<tr><td colspan="6">No completed sales yet.</td></tr>{% endfor %}
-</tbody></table>
+</tbody></table></div></div>
+</div>
 {% endblock %}

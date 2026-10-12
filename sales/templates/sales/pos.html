@@ -1,13 +1,101 @@
 {% extends "sales/base_sales.html" %}
 {% block sales_content %}
-<h1>Point of Sale</h1>
+<div class="spotz-pos">
+<style>
+/* SPOTZ POS premium presentation — scoped to this page */
+.spotz-pos { color: #172033; }
+.spotz-pos .pos-heading {
+  display:flex; align-items:center; justify-content:space-between;
+  flex-wrap:wrap; gap:12px; margin:8px 0 22px;
+}
+.spotz-pos .pos-eyebrow {
+  color:#9a6a12; font-size:.76rem; font-weight:800;
+  letter-spacing:.15em; text-transform:uppercase; margin:0 0 6px;
+}
+.spotz-pos h1 { margin:0; font-size:clamp(1.65rem,3vw,2.25rem); letter-spacing:-.04em; }
+.spotz-pos .pos-subtitle { color:#667085; margin:7px 0 0; }
+.spotz-pos .pos-status {
+  display:inline-flex; align-items:center; gap:8px; padding:9px 13px;
+  border:1px solid #b7e4ce; border-radius:999px; background:#ecfdf3;
+  color:#067647; font-size:.82rem; font-weight:750;
+}
+.spotz-pos .pos-status:before {
+  content:""; width:8px; height:8px; border-radius:50%; background:#12b76a;
+}
+.spotz-pos .pos-panel {
+  background:#fff; border:1px solid #e6eaf0; border-radius:18px;
+  padding:clamp(16px,2.4vw,25px); margin:0 0 18px;
+  box-shadow:0 8px 24px rgba(16,24,40,.045);
+}
+.spotz-pos .pos-panel h2 { margin:0 0 6px; font-size:1.12rem; letter-spacing:-.02em; }
+.spotz-pos .pos-help { color:#667085; font-size:.9rem; margin:0 0 18px; }
+.spotz-pos label { display:block; color:#344054; font-weight:700; font-size:.88rem; margin-bottom:7px; }
+.spotz-pos select, .spotz-pos input:not([type=hidden]), .spotz-pos textarea {
+  box-sizing:border-box; max-width:100%; min-height:43px; padding:10px 12px;
+  border:1px solid #d0d5dd; border-radius:10px; background:#fff;
+  color:#101828; font:inherit; transition:border-color .15s,box-shadow .15s;
+}
+.spotz-pos select:focus, .spotz-pos input:focus, .spotz-pos textarea:focus {
+  outline:none; border-color:#c69a3a; box-shadow:0 0 0 3px rgba(198,154,58,.16);
+}
+.spotz-pos .pos-point { max-width:480px; }
+.spotz-pos #cart { width:100%; border-collapse:separate; border-spacing:0; min-width:620px; }
+.spotz-pos #cart th {
+  background:#f8fafc; color:#667085; font-size:.76rem; font-weight:800;
+  letter-spacing:.07em; text-transform:uppercase; text-align:left;
+  padding:13px 12px; border-top:1px solid #eaecf0; border-bottom:1px solid #eaecf0;
+}
+.spotz-pos #cart th:first-child { border-radius:10px 0 0 0; }
+.spotz-pos #cart th:last-child { border-radius:0 10px 0 0; }
+.spotz-pos #cart td { padding:12px; border-bottom:1px solid #f0f2f5; vertical-align:middle; }
+.spotz-pos #cart td select { width:100%; min-width:210px; }
+.spotz-pos #cart td input { width:100px !important; }
+.spotz-pos #cart .price, .spotz-pos #cart .line { font-variant-numeric:tabular-nums; font-weight:700; white-space:nowrap; }
+.spotz-pos button {
+  cursor:pointer; border:1px solid #d0d5dd; border-radius:10px;
+  padding:10px 14px; font:inherit; font-weight:750;
+  transition:transform .15s, box-shadow .15s, filter .15s;
+}
+.spotz-pos button:hover { filter:brightness(.98); box-shadow:0 4px 12px rgba(16,24,40,.09); }
+.spotz-pos button:active { transform:translateY(1px); }
+.spotz-pos #add-row { background:#fff8e7; color:#855b0b; border-color:#ead39a; }
+.spotz-pos #cart button { background:#fff; color:#b42318; border-color:#fecdca; padding:8px 10px; font-size:.82rem; }
+.spotz-pos .pos-total {
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;
+  gap:10px; margin-top:18px; padding:18px 20px; border-radius:14px;
+  background:linear-gradient(110deg,#172033,#263650); color:#fff;
+}
+.spotz-pos .pos-total-label { color:#d0d5dd; font-size:.9rem; }
+.spotz-pos .pos-total-value { color:#f8d477; font-size:clamp(1.4rem,3vw,2rem); font-weight:850; font-variant-numeric:tabular-nums; }
+.spotz-pos .pos-checkout-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.spotz-pos .pos-field { min-width:0; }
+.spotz-pos .pos-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
+.spotz-pos #submit-complete { background:#16845b; color:#fff; border:1px solid #16845b; padding:13px 21px !important; }
+.spotz-pos #submit-hold { background:#fff8e7 !important; color:#855b0b !important; border:1px solid #ead39a !important; padding:13px 18px !important; }
+.spotz-pos #cash-change-hint { border-radius:12px !important; }
+.spotz-pos .pos-error {
+  background:#fff1f0; border:1px solid #fecdca; border-left:4px solid #d92d20;
+  color:#912018; padding:14px 16px; margin-bottom:18px; border-radius:12px;
+}
+.spotz-pos .pos-empty {
+  padding:14px 16px; border:1px solid #fedf89; border-radius:12px;
+  background:#fffaeb; color:#854a0e; margin-bottom:18px;
+}
+@media(max-width:700px) {
+  .spotz-pos .pos-checkout-grid { grid-template-columns:1fr; }
+  .spotz-pos .pos-actions { flex-direction:column; }
+  .spotz-pos .pos-actions button { width:100%; }
+  .spotz-pos .pos-total { align-items:flex-start; flex-direction:column; }
+}
+</style>
+<div class="pos-heading"><div><p class="pos-eyebrow">SPOTZ · Sales terminal</p><h1>Point of Sale</h1><p class="pos-subtitle">Build the order, confirm payment, and complete the sale.</p></div><span class="pos-status">POS ready</span></div>
 
 {% if not products_json or products_json == "[]" %}
-<p>No products have an effective selling price yet. Add categories, units, products, and selling prices before checkout.</p>
+<div class="pos-empty"><strong>No priced products available.</strong><br>Add categories, units, products, and selling prices before checkout.</div>
 {% endif %}
 
 {% if form.non_field_errors %}
-<div style="background:#fee2e2; border-left:4px solid #b91c1c; padding:0.75rem; margin-bottom:1rem; border-radius:0.25rem;">
+<div class="pos-error">
   <strong>Error:</strong>
   {{ form.non_field_errors }}
 </div>
@@ -16,9 +104,9 @@
 <form method="post" id="checkout-form">
   {% csrf_token %}
 
-  <p>{{ form.operating_point.label_tag }} {{ form.operating_point }}</p>
+  <section class="pos-panel"><h2>Operating point</h2><p class="pos-help">Choose where this sale is being recorded.</p><div class="pos-point">{{ form.operating_point.label_tag }}{{ form.operating_point }}</div></section>
 
-  <h2>Items</h2>
+  <section class="pos-panel"><h2>Sale items</h2><p class="pos-help">Select each product and enter the quantity to sell.</p>
   <div style="overflow-x:auto">
     <table id="cart">
       <thead>
@@ -29,9 +117,9 @@
       <tbody></tbody>
     </table>
   </div>
-  <p><button type="button" id="add-row">Add item</button></p>
+  <p style="margin:16px 0 0"><button type="button" id="add-row">+ Add item</button></p>
 
-  <p>Subtotal: KES <strong id="subtotal">0.00</strong></p>
+  <div class="pos-total"><div><div class="pos-total-label">Sale subtotal</div><div style="font-size:.8rem;color:#d0d5dd;margin-top:4px">Kenya shillings (KES)</div></div><strong class="pos-total-value">KES <span id="subtotal">0.00</span></strong></div></section>
 
   {{ form.items_json }}
   {{ form.mpesa_codes_json }}
@@ -47,7 +135,7 @@
     <strong id="cash-change-value" style="font-size:1.2rem; margin-left:0.5rem;">KES 0.00</strong>
   </div>
 
-  <div style="margin-top:1rem; display:flex; gap:0.5rem;">
+  <div class="pos-actions">
     <button type="submit" id="submit-complete" style="padding:0.75rem 1.5rem; font-size:1rem;">Complete sale</button>
     <button type="submit" id="submit-hold" name="hold_as_unpaid" value="1"
             style="padding:0.75rem 1.5rem; font-size:1rem; background:#f3f4f6; color:#374151; border:1px solid #d1d5db;">

@@ -1,0 +1,56 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>{{ asset.asset_number }} — {{ asset.name }}</h1>
+<p class="muted">{{ asset.get_condition_display }} · {{ asset.current_area.name }} · <span class="status-badge">{{ asset.get_lifecycle_status_display }}</span></p>
+
+{% if can_edit %}
+<p>
+  <a href="{% url 'property:asset_edit' asset.pk %}">Edit</a> ·
+  <form method="post" action="{% url 'property:asset_dispose' asset.pk %}" style="display:inline" onsubmit="return confirm('Dispose this asset?')">
+    {% csrf_token %}<input type="text" name="reason" placeholder="Disposal reason" required><button type="submit">Dispose</button>
+  </form>
+</p>
+{% endif %}
+<p>
+  <a href="{% url 'property:condition_create' asset.pk %}">Report condition</a> ·
+  <a href="{% url 'property:relocation_request' asset.pk %}">Request relocation</a>
+</p>
+
+<h2>Details</h2>
+<table class="property-table">
+  <tr><th>Category</th><td>{{ asset.category|default:"—" }}</td></tr>
+  <tr><th>Description</th><td>{{ asset.description|default:"—" }}</td></tr>
+  <tr><th>Quantity</th><td>{{ asset.quantity }}</td></tr>
+  <tr><th>Registered</th><td>{{ asset.registration_date }}</td></tr>
+  <tr><th>Acquired</th><td>{{ asset.acquired_date|default:"—" }}</td></tr>
+  <tr><th>Supplier</th><td>{{ asset.supplier|default:"—" }}</td></tr>
+  <tr><th>Cost</th><td>{{ asset.purchase_cost|default:"—" }}</td></tr>
+  <tr><th>Notes</th><td>{{ asset.notes|default:"—" }}</td></tr>
+</table>
+
+<h2>Condition reports</h2>
+<table class="property-table">
+  <thead><tr><th>Reported</th><th>Condition</th><th>Qty</th><th>Status</th><th>By</th></tr></thead>
+  <tbody>{% for r in conditions %}
+    <tr><td>{{ r.reported_at }}</td><td>{{ r.get_condition_reported_display }}</td>
+        <td>{{ r.quantity_affected }}</td>
+        <td><span class="status-badge">{{ r.get_status_display }}</span></td>
+        <td>{{ r.reported_by.username }}</td></tr>
+  {% empty %}<tr><td colspan="5" class="muted">None</td></tr>{% endfor %}
+  </tbody>
+</table>
+
+<h2>Relocations</h2>
+<table class="property-table">
+  <thead><tr><th>From</th><th>To</th><th>Requested</th><th>Status</th></tr></thead>
+  <tbody>{% for r in relocations %}
+    <tr>
+      <td>{{ r.origin_area.code }}</td>
+      <td>{{ r.destination_area.code }}</td>
+      <td>{{ r.submitted_at }}</td>
+      <td><a href="{% url 'property:relocation_detail' r.pk %}"><span class="status-badge">{{ r.get_status_display }}</span></a></td>
+    </tr>
+  {% empty %}<tr><td colspan="4" class="muted">None</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Report New Item</h1>
+<p class="muted">The Director will review your report before it becomes an official asset.</p>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Submit for review</button>
+</form>
+{% endblock %}

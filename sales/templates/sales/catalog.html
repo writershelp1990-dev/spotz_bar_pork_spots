@@ -1,5 +1,120 @@
 {% extends "sales/base_sales.html" %}
 {% block sales_content %}
+<style>
+/* SPOTZ catalogue page — presentation only */
+.spotz-catalog-design {
+    color: #172033;
+    max-width: 100%;
+    padding-bottom: 28px;
+}
+.spotz-catalog-design h1,
+.spotz-catalog-design h2,
+.spotz-catalog-design h3 {
+    color: #172033;
+    letter-spacing: -.025em;
+}
+.spotz-catalog-design h1 {
+    font-size: clamp(1.55rem, 2.5vw, 2.1rem);
+    font-weight: 800;
+    margin: 8px 0 20px;
+}
+.spotz-catalog-design h2 {
+    font-size: 1.2rem;
+    font-weight: 750;
+    margin: 30px 0 14px;
+}
+.spotz-catalog-design a {
+    color: #176b53;
+    font-weight: 650;
+    text-decoration: none;
+}
+.spotz-catalog-design a:hover {
+    color: #0d4938;
+    text-decoration: underline;
+}
+.spotz-catalog-design > p a,
+.spotz-catalog-design > div a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 7px 8px 0;
+    padding: 9px 13px;
+    border: 1px solid #d5e4dc;
+    border-radius: 9px;
+    background: #f2f8f4;
+    text-decoration: none;
+}
+.spotz-catalog-design > p a:hover,
+.spotz-catalog-design > div a:hover {
+    background: #e4f2e9;
+    text-decoration: none;
+}
+.spotz-catalog-design table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    border: 1px solid #e2e8e4;
+    border-radius: 13px;
+    overflow: hidden;
+    font-size: .9rem;
+}
+.spotz-catalog-design table th {
+    padding: 13px 12px;
+    background: #f0f5f2;
+    color: #42544b;
+    font-size: .76rem;
+    font-weight: 800;
+    letter-spacing: .035em;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid #dce6df;
+}
+.spotz-catalog-design table td {
+    padding: 13px 12px;
+    color: #354237;
+    border-bottom: 1px solid #edf1ee;
+    vertical-align: middle;
+}
+.spotz-catalog-design table tbody tr:last-child td {
+    border-bottom: 0;
+}
+.spotz-catalog-design table tbody tr:hover {
+    background: #f7faf8;
+}
+.spotz-catalog-design table td a {
+    display: inline-block;
+    padding: 5px 10px;
+    border: 1px solid #cfe2d6;
+    border-radius: 7px;
+    background: #edf7f0;
+}
+.spotz-catalog-design table td a:hover {
+    background: #dcefe2;
+    text-decoration: none;
+}
+.spotz-catalog-design table td:nth-child(9),
+.spotz-catalog-design table td:nth-child(3) {
+    font-variant-numeric: tabular-nums;
+    font-weight: 750;
+}
+.spotz-catalog-design table + h2 {
+    margin-top: 32px;
+}
+@media (max-width: 900px) {
+    .spotz-catalog-design {
+        overflow-wrap: anywhere;
+    }
+    .spotz-catalog-design table {
+        min-width: 850px;
+    }
+    .spotz-catalog-design {
+        overflow-x: auto;
+    }
+}
+</style>
+<div class="spotz-catalog-design">
+
 <h1>Products and catalogue management</h1>
 
 <p>
@@ -57,4 +172,6 @@
 {% endfor %}
 </tbody>
 </table>
+
+</div>
 {% endblock %}

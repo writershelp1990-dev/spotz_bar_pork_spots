@@ -1,0 +1,58 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Approval Queue</h1>
+
+<h2>Pending relocations</h2>
+<table class="property-table">
+  <thead><tr><th>Asset</th><th>From</th><th>To</th><th>Requested by</th><th>Recipient</th><th>Submitted</th><th></th></tr></thead>
+  <tbody>{% for r in pending %}
+    <tr>
+      <td>{{ r.asset.asset_number }} — {{ r.asset.name }}</td>
+      <td>{{ r.origin_area.code }}</td>
+      <td>{{ r.destination_area.code }}</td>
+      <td>{{ r.requested_by.username }}</td>
+      <td>{{ r.receiving_attendant.username }}</td>
+      <td>{{ r.submitted_at }}</td>
+      <td>
+        <form method="post" action="{% url 'property:relocation_decide' r.pk %}" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="approve">
+          <button type="submit">Approve</button>
+        </form>
+        <form method="post" action="{% url 'property:relocation_decide' r.pk %}" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="decline">
+          <input type="text" name="director_decision_notes" placeholder="Reason" required>
+          <button type="submit">Decline</button>
+        </form>
+      </td>
+    </tr>
+  {% empty %}<tr><td colspan="7" class="muted">No pending approvals.</td></tr>{% endfor %}
+  </tbody>
+</table>
+
+<h2>Transfer exceptions</h2>
+<table class="property-table">
+  <thead><tr><th>Asset</th><th>Recipient</th><th>Reason</th><th>Action</th></tr></thead>
+  <tbody>{% for r in exceptions %}
+    <tr>
+      <td>{{ r.asset.asset_number }} — {{ r.asset.name }}</td>
+      <td>{{ r.receiving_attendant.username }}</td>
+      <td>{{ r.decline_reason }}</td>
+      <td>
+        <form method="post" action="{% url 'property:relocation_resolve_exception' r.pk %}" style="display:inline">
+          {% csrf_token %}
+          <select name="action">
+            <option value="cancel">Cancel transfer</option>
+            <option value="new_recipient">Send to a new recipient</option>
+          </select>
+          <input type="text" name="cancellation_reason" placeholder="Notes">
+          <button type="submit">Resolve</button>
+        </form>
+        <a href="{% url 'property:relocation_detail' r.pk %}">Details</a>
+      </td>
+    </tr>
+  {% empty %}<tr><td colspan="4" class="muted">No exceptions.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

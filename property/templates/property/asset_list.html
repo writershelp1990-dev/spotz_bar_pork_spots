@@ -1,0 +1,70 @@
+{% extends "property/base_property.html" %}
+{% block property_content %}
+<h1>Asset Register</h1>
+
+<form method="get" style="margin-bottom:12px">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search asset #, name, category" style="padding:6px 8px">
+  <select name="area" style="padding:6px 8px">
+    <option value="">All areas</option>
+    {% for a in areas %}<option value="{{ a.code }}" {% if a.code == current_area %}selected{% endif %}>{{ a.code }}</option>{% endfor %}
+  </select>
+  <button type="submit">Filter</button>
+  {% if can_edit %}<a href="{% url 'property:asset_create' %}" style="margin-left:12px">+ New asset</a>{% endif %}
+</form>
+
+{# ---------- Grouped view (Director, no search filter) ---------- #}
+{% if grouped %}
+  {% for g in grouped %}
+    <h2 style="margin-top:22px">
+      {{ g.name }}
+      <span class="muted small" style="font-weight:normal">— {{ g.count }} asset{{ g.count|pluralize }}</span>
+    </h2>
+    <table class="property-table">
+      <thead>
+        <tr><th>Asset #</th><th>Name</th><th>Category</th><th>Qty</th><th>Condition</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+      {% for a in g.assets %}
+        <tr>
+          <td><a href="{% url 'property:asset_detail' a.pk %}">{{ a.asset_number }}</a></td>
+          <td>{{ a.name }}</td>
+          <td>{{ a.category|default:"—" }}</td>
+          <td>{{ a.quantity }}</td>
+          <td>{{ a.get_condition_display }}</td>
+          <td><span class="status-badge">{{ a.get_lifecycle_status_display }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+
+  {# If the Director has no assets in any area at all #}
+  {% if not grouped|length %}
+    <p class="muted">No assets in any area yet.</p>
+  {% endif %}
+
+{# ---------- Flat view (staff, or Director with search/filter applied) ---------- #}
+{% else %}
+  <table class="property-table">
+    <thead>
+      <tr><th>Asset #</th><th>Name</th><th>Category</th><th>Area</th><th>Qty</th><th>Condition</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+    {% for a in assets %}
+      <tr>
+        <td><a href="{% url 'property:asset_detail' a.pk %}">{{ a.asset_number }}</a></td>
+        <td>{{ a.name }}</td>
+        <td>{{ a.category|default:"—" }}</td>
+        <td>{{ a.current_area.code }}</td>
+        <td>{{ a.quantity }}</td>
+        <td>{{ a.get_condition_display }}</td>
+        <td><span class="status-badge">{{ a.get_lifecycle_status_display }}</span></td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="muted">No assets match.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+
+{% endblock %}
