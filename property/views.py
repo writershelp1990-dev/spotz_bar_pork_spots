@@ -415,9 +415,17 @@ def relocation_request(request, asset_pk):
     asset = get_object_or_404(Asset, pk=asset_pk)
     if not user_can_view_asset(request.user, asset):
         raise PermissionDenied("No access to this asset.")
+
+    from .permissions import eligible_recipients_for_area
+    all_areas = PhysicalArea.objects.filter(is_active=True).order_by("code")
+    # Precompute {area_code: set(user_ids)} for the template
+    eligible_map = {
+        a.code: set(eligible_recipients_for_area(a.code).values_list("pk", flat=True))
+        for a in all_areas
+    }
+
     if request.method == "POST":
-        form = RelocationRequestForm(request.POST, user=request.user, asset=asset,
-                                     allowed_areas=areas_for(request.user))
+        form = RelocationRequestForm(request.POST, user=request.user, asset=asset)
         if form.is_valid():
             try:
                 reloc = services.create_relocation_request(
@@ -428,9 +436,21 @@ def relocation_request(request, asset_pk):
             except (PermissionDenied, ValidationError) as e:
                 messages.error(request, str(e))
     else:
-        form = RelocationRequestForm(user=request.user, asset=asset,
-                                     allowed_areas=areas_for(request.user))
-    return render(request, "property/relocation_request_form.html", {"asset": asset, "form": form})
+        form = RelocationRequestForm(user=request.user, asset=asset)
+    import json
+    eligible_map_json = json.dumps(
+        {code: sorted(list(ids)) for code, ids in eligible_map.items()}
+    )
+    destination_area_codes_json = json.dumps(
+        {str(a.pk): a.code for a in all_areas}
+    )
+    return render(request, "property/relocation_request_form.html", {
+        "asset": asset,
+        "form": form,
+        "eligible_map": eligible_map,
+        "eligible_map_json": eligible_map_json,
+        "destination_area_codes_json": destination_area_codes_json,
+    })
 
 
 @login_required

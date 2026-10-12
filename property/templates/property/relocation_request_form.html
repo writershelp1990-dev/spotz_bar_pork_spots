@@ -1,11 +1,178 @@
 {% extends "property/base_property.html" %}
 {% block property_content %}
 <h1>Request Relocation — {{ asset.asset_number }}</h1>
-<p class="muted">{{ asset.name }} currently at {{ asset.current_area.code }}</p>
-<p class="muted">A Director must approve your request. The recipient must accept and confirm receipt before the official location changes.</p>
+<p class="muted">{{ asset.name }} currently at <strong>{{ asset.current_area.code }}</strong></p>
+<p class="muted">
+  A Director must approve your request. The recipient must accept and confirm
+  receipt before the official location changes. The recipient must be
+  <strong>deployed to or granted access at the destination area</strong>
+  (or be the Director).
+</p>
+
 <form method="post">
   {% csrf_token %}
-  {{ form.as_p }}
+
+  {% if form.non_field_errors %}
+    <div style="padding:10px 14px;background:#fee2e2;border-radius:8px;margin-bottom:12px">
+      {{ form.non_field_errors }}
+    </div>
+  {% endif %}
+
+  <p>
+    <label>Destination area<br>
+      {{ form.destination_area }}
+    </label>
+    {% if form.destination_area.errors %}<br><span style="color:#b91c1c">{{ form.destination_area.errors }}</span>{% endif %}
+  </p>
+
+  <p>
+    <label>Reason<br>
+      {{ form.reason }}
+    </label>
+    {% if form.reason.errors %}<br><span style="color:#b91c1c">{{ form.reason.errors }}</span>{% endif %}
+  </p>
+
+  <p>
+    <label>Condition before<br>
+      {{ form.condition_before }}
+    </label>
+    {% if form.condition_before.errors %}<br><span style="color:#b91c1c">{{ form.condition_before.errors }}</span>{% endif %}
+  </p>
+
+  <p>
+    <label>Receiving attendant<br>
+      <select name="{{ form.receiving_attendant.name }}" id="id_receiving_attendant">
+        <option value="">— pick a destination first —</option>
+        {% for u in form.receiving_attendant.field.queryset %}
+          <option value="{{ u.pk }}" data-eligible-areas="{{ eligible_map|default_if_none:''|dictsort:''|length|yesno:',' }}">
+            {{ u.username }}
+            {% if u.is_director %} (Director — can receive anywhere){% endif %}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if form.receiving_attendant.errors %}<br><span style="color:#b91c1c">{{ form.receiving_attendant.errors }}</span>{% endif %}
+    <br><span class="muted small" id="recipient-hint">
+      Pick the destination first. The list will show who is eligible there.
+    </span>
+  </p>
+
+  <p>
+    <label>Expected transfer date<br>
+      {{ form.expected_transfer_date }}
+    </label>
+  </p>
+
+  <p>
+    <label>Notes<br>
+      {{ form.notes }}
+    </label>
+  </p>
+
   <button type="submit">Submit request</button>
 </form>
+
+<script>
+(function () {
+  // Eligibility map baked into the page.
+  // Format: { AREA_CODE: [user_id, user_id, ...] }
+  const eligible = {{ eligible_map_json|default:"{}"|safe }};
+
+  const destSelect = document.getElementById("id_destination_area");
+  const recSelect = document.getElementById("id_receiving_attendant");
+  const hint = document.getElementById("recipient-hint");
+
+  // Snapshot of every option, with its username and director flag.
+  const allOptions = Array.from(recSelect.options).map(o => ({
+    value: o.value,
+    label: o.textContent,
+    isPlaceholder: o.value === "",
+  }));
+
+  function refreshRecipients() {
+    const dest = destSelect.value;  // the pk of the area, as a string
+    const areaCode = destSelect.options[destSelect.selectedIndex]?.dataset?.code || "";
+    const eligibleIds = (eligible[areaCode] || []).map(String);
+
+    recSelect.innerHTML = "";
+
+    // Always include a placeholder
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = areaCode
+      ? "— pick a receiving attendant —"
+      : "— pick a destination first —";
+    recSelect.appendChild(ph);
+
+    if (!areaCode) {
+      if (hint) hint.textContent = "Pick the destination first.";
+      return;
+    }
+
+    const eligibleOpts = [];
+    const otherOpts = [];
+
+    for (const o of allOptions) {
+      if (o.isPlaceholder) continue;
+      const isDir = /\(Director/.test(o.label);
+      if (isDir || eligibleIds.includes(String(o.value))) {
+        eligibleOpts.push(o);
+      } else {
+        otherOpts.push(o);
+      }
+    }
+
+    if (eligibleOpts.length) {
+      const g = document.createElement("optgroup");
+      g.label = "Eligible at " + areaCode;
+      for (const o of eligibleOpts) {
+        const el = document.createElement("option");
+        el.value = o.value;
+        el.textContent = o.label;
+        g.appendChild(el);
+      }
+      recSelect.appendChild(g);
+    }
+
+    if (otherOpts.length) {
+      const g = document.createElement("optgroup");
+      g.label = "Other staff (may be rejected)";
+      for (const o of otherOpts) {
+        const el = document.createElement("option");
+        el.value = o.value;
+        el.textContent = o.label;
+        g.appendChild(el);
+      }
+      recSelect.appendChild(g);
+    }
+
+    if (hint) {
+      hint.textContent =
+        eligibleOpts.length
+          ? eligibleOpts.length + " staff eligible at " + areaCode +
+            " (plus the Director)."
+          : "No staff are currently deployed to or granted access at " +
+            areaCode + ". The Director can still receive.";
+    }
+  }
+
+  // Attach the area code to the destination <option> elements.
+  // We rely on the option's textContent starting with the code
+  // because the form renders PhysicalArea.__str__ as "CODE — Name" or similar.
+  // The safest is to match by area pk, which Django puts in value="".
+  // We can pull the code from a small inline map generated server-side.
+  const areaCodesByPk = {{ eligible_map_json|default:"{}"|safe }}; // placeholder
+  // Real map is rendered by the template as a JS object literal:
+  const codeByPk = {{ destination_area_codes_json|default:"{}"|safe }};
+
+  for (const opt of destSelect.options) {
+    if (opt.value && codeByPk[opt.value]) {
+      opt.dataset.code = codeByPk[opt.value];
+    }
+  }
+
+  destSelect.addEventListener("change", refreshRecipients);
+  refreshRecipients();
+})();
+</script>
 {% endblock %}

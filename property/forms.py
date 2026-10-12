@@ -7,7 +7,7 @@ from .models import (
     Asset, AssetNewItemReport, AssetRelocation, ConditionReport,
     PhysicalArea, PropertyCheck, PropertyCheckLine,
 )
-from .permissions import is_director
+from .permissions import is_director, areas_for
 
 
 class AssetForm(forms.ModelForm):
@@ -102,11 +102,81 @@ class RelocationRequestForm(forms.ModelForm):
         }
 
     def __init__(self, *args, user=None, asset=None, allowed_areas=None, **kwargs):
+        """Rule B: destination list is every active area except the asset's
+        current one. The receiving attendant must be deployed to or granted
+        access at the destination area (or be the Director)."""
         super().__init__(*args, **kwargs)
         qs = PhysicalArea.objects.filter(is_active=True)
-        if allowed_areas is not None:
-            qs = qs.filter(code__in=allowed_areas)
+        if asset is not None and asset.current_area_id:
+            qs = qs.exclude(pk=asset.current_area_id)
         self.fields["destination_area"].queryset = qs.order_by("code")
+        self.asset = asset
+
+        # Full list for the dropdown. The template groups by eligibility
+        # using the `eligible_map` passed from the view.
+        from accounts.models import User
+        self.fields["receiving_attendant"].queryset = (
+            User.objects.filter(is_active=True, is_active_staff=True)
+            .order_by("username")
+        )
+
+    def clean_destination_area(self):
+        dest = self.cleaned_data.get("destination_area")
+        if dest is None:
+            raise forms.ValidationError("Select a destination area.")
+        if self.asset is not None and dest == self.asset.current_area:
+            raise forms.ValidationError("Destination must differ from the current area.")
+        return dest
+
+    def clean(self):
+        cleaned = super().clean()
+        dest = cleaned.get("destination_area")
+        recipient = cleaned.get("receiving_attendant")
+        if dest and recipient:
+            from .permissions import eligible_recipients_for_area
+            # Director is always eligible.
+            is_dir = bool(
+                getattr(recipient, "is_superuser", False) or
+                getattr(recipient, "is_director", False)
+            )
+            if not is_dir:
+                eligible = eligible_recipients_for_area(dest.code)
+                if not eligible.filter(pk=recipient.pk).exists():
+                    self.add_error(
+                        "receiving_attendant",
+                        f"{recipient.username} is not deployed to or granted "
+                        f"access at {dest.code}. Choose a staff member assigned "
+                        f"to that area, or the Director."
+                    )
+        return cleaned
+
+class RelocationRequestForm(forms.ModelForm):
+    class Meta:
+        model = AssetRelocation
+        fields = [
+            "destination_area", "reason", "condition_before",
+            "receiving_attendant", "expected_transfer_date", "notes",
+        ]
+        widgets = {
+            "reason": forms.Textarea(attrs={"rows": 3}),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+            "expected_transfer_date": forms.DateInput(attrs={"type": "date"}),
+        }
+
+    def __init__(self, *args, user=None, asset=None, allowed_areas=None, **kwargs):
+        """Rule A: the destination list is every active area except the
+        asset's current one. The requester's own areas do NOT restrict the
+        destination — the receiving attendant's areas are validated on
+        submit. The requester only needs access to the asset itself, which
+        the view already checks."""
+        super().__init__(*args, **kwargs)
+        qs = PhysicalArea.objects.filter(is_active=True)
+        if asset is not None and asset.current_area_id:
+            qs = qs.exclude(pk=asset.current_area_id)
+        self.fields["destination_area"].queryset = qs.order_by("code")
+
+        self.asset = asset
+
         # Receiving attendant: any active staff user
         from accounts.models import User
         self.fields["receiving_attendant"].queryset = (
@@ -114,11 +184,27 @@ class RelocationRequestForm(forms.ModelForm):
         )
 
     def clean_destination_area(self):
-        dest = self.cleaned_data["destination_area"]
-        if self.instance.pk and self.instance.asset_id:
-            if dest == self.instance.asset.current_area:
-                raise forms.ValidationError("Destination must differ from current area.")
+        dest = self.cleaned_data.get("destination_area")
+        if dest is None:
+            raise forms.ValidationError("Select a destination area.")
+        if self.asset is not None and dest == self.asset.current_area:
+            raise forms.ValidationError("Destination must differ from the current area.")
         return dest
+
+    def clean(self):
+        cleaned = super().clean()
+        dest = cleaned.get("destination_area")
+        recipient = cleaned.get("receiving_attendant")
+        if dest and recipient:
+            from .permissions import areas_for
+            recipient_areas = areas_for(recipient)
+            if dest.code not in recipient_areas:
+                self.add_error(
+                    "receiving_attendant",
+                    f"{recipient.username} is not authorized to receive items "
+                    f"at {dest.code}. Choose a different recipient or destination."
+                )
+        return cleaned
 
 
 class RelocationApprovalForm(forms.Form):

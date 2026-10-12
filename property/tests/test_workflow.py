@@ -43,6 +43,22 @@ class WorkflowBase(TestCase):
             employee=cls.bar_emp, area=cls.bar_area,
             granted_by=cls.director, is_active=True)
 
+        # Kitchen attendant - used as a valid recipient for Kitchen destinations
+        # under Rule A. The Bar attendant is NOT authorized for Kitchen, so a
+        # Bar -> Kitchen move must designate a Kitchen-authorized recipient.
+        cls.kit_role, _ = RoleDefinition.objects.get_or_create(
+            code="KITCHEN_ATTENDANT", defaults={"name": "Kitchen Attendant"})
+        cls.kit_user = User.objects.create_user(
+            username="wf_kit", password="pw",
+            role="KITCHEN_ATTENDANT", role_definition=cls.kit_role,
+            is_active=True, is_active_staff=True)
+        cls.kit_emp = Employee.objects.create(
+            user=cls.kit_user, operating_point=None,
+            employment_status=Employee.EmploymentStatus.ACTIVE)
+        StaffAreaAccess.objects.create(
+            employee=cls.kit_emp, area=cls.kit_area,
+            granted_by=cls.director, is_active=True)
+
     def make_asset(self, *, area=None, number=None, user=None):
         return Asset.objects.create(
             asset_number=number or f"WF-{Asset.objects.count()+1:04d}",
@@ -198,13 +214,28 @@ class RelocationWorkflowTests(WorkflowBase):
     def setUp(self):
         self.asset = self.make_asset()
 
-    def _request(self, user=None, dest=None):
+    def _request(self, user=None, dest=None, recipient=None):
+        """Submit a relocation request.
+
+        Under Rule A the receiving attendant must be authorized for the
+        destination area. Default destination is KITCHEN, so the default
+        recipient is the Kitchen attendant.
+        """
+        dest_area = dest or self.kit_area
+        if recipient is not None:
+            rec = recipient
+        elif dest_area.code == "KITCHEN":
+            rec = self.kit_user
+        elif dest_area.code == "BAR":
+            rec = self.bar_user
+        else:
+            rec = self.kit_user
         return services.create_relocation_request(
             user=user or self.bar_user, asset=self.asset, data={
-                "destination_area": dest or self.kit_area,
+                "destination_area": dest_area,
                 "reason": "test move",
                 "condition_before": Asset.Condition.WORKING,
-                "receiving_attendant": self.bar_user,
+                "receiving_attendant": rec,
                 "expected_transfer_date": None, "notes": "",
             })
 
@@ -247,8 +278,7 @@ class RelocationWorkflowTests(WorkflowBase):
         r = self._request()
         services.director_decide_relocation(
             user=self.director, relocation=r, action="approve")
-        services.recipient_decide(
-            user=self.bar_user, relocation=r, action="accept")
+        services.recipient_decide(user=self.kit_user, relocation=r, action="accept")
         self.asset.refresh_from_db()
         r.refresh_from_db()
         self.assertEqual(r.recipient_decision, "ACCEPTED")
@@ -259,9 +289,7 @@ class RelocationWorkflowTests(WorkflowBase):
         r = self._request()
         services.director_decide_relocation(
             user=self.director, relocation=r, action="approve")
-        services.recipient_decide(
-            user=self.bar_user, relocation=r, action="decline",
-            decline_reason="not on duty")
+        services.recipient_decide(user=self.kit_user, relocation=r, action="decline", decline_reason="not on duty")
         r.refresh_from_db()
         self.assertEqual(r.status, AssetRelocation.Status.TRANSFER_EXCEPTION)
         self.asset.refresh_from_db()
@@ -271,12 +299,8 @@ class RelocationWorkflowTests(WorkflowBase):
         r = self._request()
         services.director_decide_relocation(
             user=self.director, relocation=r, action="approve")
-        services.recipient_decide(
-            user=self.bar_user, relocation=r, action="accept")
-        services.confirm_receipt(
-            user=self.bar_user, relocation=r,
-            condition_at_receipt=Asset.Condition.WORKING,
-            receipt_notes="ok")
+        services.recipient_decide(user=self.kit_user, relocation=r, action="accept")
+        services.confirm_receipt(user=self.kit_user, relocation=r, condition_at_receipt=Asset.Condition.WORKING, receipt_notes="ok")
         self.asset.refresh_from_db()
         r.refresh_from_db()
         self.assertEqual(self.asset.current_area, self.kit_area)
@@ -286,15 +310,10 @@ class RelocationWorkflowTests(WorkflowBase):
         r = self._request()
         services.director_decide_relocation(
             user=self.director, relocation=r, action="approve")
-        services.recipient_decide(
-            user=self.bar_user, relocation=r, action="accept")
-        services.confirm_receipt(
-            user=self.bar_user, relocation=r,
-            condition_at_receipt=Asset.Condition.WORKING, receipt_notes="")
+        services.recipient_decide(user=self.kit_user, relocation=r, action="accept")
+        services.confirm_receipt(user=self.kit_user, relocation=r, condition_at_receipt=Asset.Condition.WORKING, receipt_notes="")
         with self.assertRaises(ValidationError):
-            services.confirm_receipt(
-                user=self.bar_user, relocation=r,
-                condition_at_receipt=Asset.Condition.WORKING, receipt_notes="")
+            services.confirm_receipt(user=self.kit_user, relocation=r, condition_at_receipt=Asset.Condition.WORKING, receipt_notes="")
 
     def test_recipient_cannot_be_someone_else(self):
         r = self._request()
@@ -315,3 +334,65 @@ class RelocationWorkflowTests(WorkflowBase):
                       "condition_before": Asset.Condition.WORKING,
                       "receiving_attendant": self.bar_user,
                       "expected_transfer_date": None, "notes": ""})
+
+class RuleARelocationTests(WorkflowBase):
+    """Rule A: a non-Director can propose any destination for an asset they
+    can see, as long as the designated recipient is authorized there."""
+
+    def setUp(self):
+        # The Bar user can see this asset (BAR is their granted area)
+        self.asset = self.make_asset()
+        # Create a Kitchen attendant who is NOT authorized at Bar
+        from accounts.models import User as _U
+        self.kit_role, _ = RoleDefinition.objects.get_or_create(
+            code="KITCHEN_ATTENDANT", defaults={"name": "Kitchen Attendant"})
+        self.kit_user = _U.objects.create_user(
+            username="wf_kit_rule_a", password="pw",
+            role="KITCHEN_ATTENDANT", role_definition=self.kit_role,
+            is_active=True, is_active_staff=True)
+        self.kit_emp = Employee.objects.create(
+            user=self.kit_user, operating_point=None,
+            employment_status=Employee.EmploymentStatus.ACTIVE)
+        StaffAreaAccess.objects.create(
+            employee=self.kit_emp, area=self.kit_area,
+            granted_by=self.director, is_active=True)
+
+    def test_bar_attendant_can_request_kitchen_destination_with_kitchen_recipient(self):
+        """Bar attendant proposes a Kitchen move; Kitchen attendant receives."""
+        relocation = services.create_relocation_request(
+            user=self.bar_user, asset=self.asset, data={
+                "destination_area": self.kit_area,
+                "reason": "Move to kitchen",
+                "condition_before": Asset.Condition.WORKING,
+                "receiving_attendant": self.kit_user,
+                "expected_transfer_date": None, "notes": "",
+            })
+        self.assertEqual(relocation.status, AssetRelocation.Status.PENDING_APPROVAL)
+        self.assertEqual(relocation.destination_area, self.kit_area)
+        self.assertEqual(relocation.receiving_attendant, self.kit_user)
+
+    def test_bar_attendant_cannot_designate_unauthorized_recipient(self):
+        """Bar attendant cannot designate themselves for a Kitchen move
+        (the Bar attendant is not authorized at Kitchen)."""
+        with self.assertRaises(ValidationError):
+            services.create_relocation_request(
+                user=self.bar_user, asset=self.asset, data={
+                    "destination_area": self.kit_area,
+                    "reason": "Self as recipient — should fail",
+                    "condition_before": Asset.Condition.WORKING,
+                    "receiving_attendant": self.bar_user,
+                    "expected_transfer_date": None, "notes": "",
+                })
+
+    def test_director_can_designate_self_for_any_destination(self):
+        """Director is authorized everywhere, so they can receive anywhere."""
+        asset = self.make_asset(area=self.bar_area, number="WF-DIR-1")
+        relocation = services.create_relocation_request(
+            user=self.director, asset=asset, data={
+                "destination_area": self.kit_area,
+                "reason": "Director receives",
+                "condition_before": Asset.Condition.WORKING,
+                "receiving_attendant": self.director,
+                "expected_transfer_date": None, "notes": "",
+            })
+        self.assertEqual(relocation.receiving_attendant, self.director)

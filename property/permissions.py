@@ -1,11 +1,13 @@
-"""Server-side authorization for the Property & Assets module."""
 from __future__ import annotations
+
+from accounts.models import Employee
+from accounts.models import User
+
 
 from functools import wraps
 
 from django.core.exceptions import PermissionDenied
 
-from accounts.models import Employee
 try:
     from accounts.employee_management import effective_employment_status
 except ImportError:
@@ -95,3 +97,70 @@ def require_director(view):
             _deny("Only the Director may perform this action.")
         return view(request, *args, **kwargs)
     return wrapped
+
+# ---------------------------------------------------------------------------
+# Recipient eligibility (Rule B)
+# ---------------------------------------------------------------------------
+def eligible_recipients_for_area(area_code: str):
+    """Return a queryset of users eligible to receive an asset at the given
+    physical area.
+
+    Eligible = Director
+             OR explicit StaffAreaAccess grant for that area
+             OR Employee.operating_point.code == area_code (for areas with
+                a matching operating-point code: BAR, BUTCHERY, CHOMA, KITCHEN)
+
+    Excluded: terminated / suspended / on-leave employees, inactive accounts.
+    Included: off-duty employees (they may be receiving later).
+
+    Note: this is the eligibility rule for the RECEIVING ATTENDANT of a
+    relocation. It is stricter than `areas_for()` — a user with area access
+    via the Director bypass is not automatically an eligible recipient
+    unless they are the Director.
+    """
+    from django.db.models import Q
+
+    directors_q = (
+        Q(is_superuser=True) |
+        Q(role_definition__code="DIRECTOR") |
+        Q(role="DIRECTOR")
+    )
+
+    # Explicit area grants
+    granted_user_ids = list(
+        StaffAreaAccess.objects
+        .filter(
+            area__code=area_code,
+            is_active=True,
+            employee__user__is_active=True,
+            employee__user__is_active_staff=True,
+        )
+        .values_list("employee__user_id", flat=True)
+    )
+
+    # HR-deployed to the equivalent operating point (where applicable)
+    deployed_user_ids = list(
+        Employee.objects
+        .filter(
+            operating_point__code=area_code,
+            user__is_active=True,
+            user__is_active_staff=True,
+        )
+        .exclude(employment_status__in=[
+            Employee.EmploymentStatus.TERMINATED,
+            Employee.EmploymentStatus.SUSPENDED,
+            Employee.EmploymentStatus.ON_LEAVE,
+        ])
+        .values_list("user_id", flat=True)
+    )
+
+    return (
+        User.objects
+        .filter(
+            (directors_q | Q(pk__in=granted_user_ids) | Q(pk__in=deployed_user_ids)),
+            is_active=True,
+            is_active_staff=True,
+        )
+        .distinct()
+        .order_by("username")
+    )

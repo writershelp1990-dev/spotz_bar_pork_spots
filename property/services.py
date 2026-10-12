@@ -15,7 +15,7 @@ from .models import (
     Asset, AssetNewItemReport, AssetRelocation, ConditionReport,
     PropertyCheck, PropertyCheckLine,
 )
-from .permissions import is_director, user_can_view_asset
+from .permissions import is_director, user_can_view_asset, areas_for
 
 # ---------------------------------------------------------------------------
 # Asset number generation
@@ -233,10 +233,29 @@ def resolve_condition_report(*, user, report: ConditionReport,
 # ---------------------------------------------------------------------------
 @transaction.atomic
 def create_relocation_request(*, user, asset: Asset, data: dict) -> AssetRelocation:
+    """Rule A: requester must be able to see the asset; the receiving
+    attendant must be authorized for the destination area. The requester's
+    own areas do NOT restrict the destination."""
     if not user_can_view_asset(user, asset):
         raise PermissionDenied("No access to this asset.")
     if data["destination_area"].pk == asset.current_area_id:
         raise ValidationError("Destination must differ from current area.")
+    recipient = data.get("receiving_attendant")
+    dest = data.get("destination_area")
+    if recipient is not None and dest is not None:
+        from .permissions import eligible_recipients_for_area
+        is_dir = bool(
+            getattr(recipient, "is_superuser", False) or
+            getattr(recipient, "is_director", False)
+        )
+        if not is_dir:
+            eligible = eligible_recipients_for_area(dest.code)
+            if not eligible.filter(pk=recipient.pk).exists():
+                raise ValidationError(
+                    f"{getattr(recipient, 'username', recipient)} is not "
+                    f"deployed to or granted access at {dest.code}. Choose a "
+                    f"staff member assigned to that area, or the Director."
+                )
     relocation = AssetRelocation.objects.create(
         asset=asset, origin_area=asset.current_area,
         requested_by=user, **data,
