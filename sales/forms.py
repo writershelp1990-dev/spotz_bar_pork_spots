@@ -127,19 +127,73 @@ class SellingPriceForm(forms.ModelForm):
         return obj
 
 class ReceiptForm(forms.Form):
+    """Receive stock.
+
+    Directors apply immediately; attendants create a PENDING StockReceipt
+    that the Director must verify before the balance changes.
+
+    The `user` kwarg tailors help text and the supplier dropdown; pass it
+    from the view so the form can advertise the correct behaviour.
+    """
+
     product = forms.ModelChoiceField(queryset=Product.objects.none())
-    operating_point = forms.ModelChoiceField(queryset=OperatingPoint.objects.none())
-    quantity = forms.DecimalField(min_value=0.001, max_digits=14, decimal_places=3)
+    operating_point = forms.ModelChoiceField(
+        queryset=OperatingPoint.objects.none())
+    quantity = forms.DecimalField(
+        min_value=0.001, max_digits=14, decimal_places=3)
+    unit_cost = forms.DecimalField(
+        min_value=0, max_digits=14, decimal_places=2,
+        help_text="Price paid per unit on this delivery.",
+    )
+    supplier = forms.ModelChoiceField(
+        queryset=None,  # set in __init__
+        help_text="If the supplier isn't listed, add them under "
+                  "Management \u2192 Suppliers first.",
+    )
+    invoice_number = forms.CharField(
+        max_length=80, required=False,
+        help_text="The supplier's invoice or delivery note number.",
+    )
+    invoice_date = forms.DateField(
+        required=False, widget=forms.DateInput(attrs={"type": "date"}),
+    )
     reference = forms.CharField(max_length=80, required=False)
-    reason = forms.CharField(widget=forms.Textarea, required=False)
+    notes = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 3}), required=False,
+        help_text="Any additional detail (previous field name: reason).",
+    )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["product"].queryset = Product.objects.filter(
-            is_active=True, track_inventory=True
-        ).select_related("selling_unit")
-        self.fields["operating_point"].queryset = OperatingPoint.objects.filter(is_active=True)
+        self.user = user
 
+        self.fields["product"].queryset = (
+            Product.objects.filter(is_active=True, track_inventory=True)
+            .select_related("selling_unit").order_by("name")
+        )
+
+        op_qs = OperatingPoint.objects.filter(is_active=True).order_by("code")
+        if user is not None and not getattr(user, "is_director", False):
+            # Attendant: only their own deployed operating point.
+            emp = getattr(user, "employee_profile", None)
+            if emp is not None and emp.operating_point_id:
+                op_qs = op_qs.filter(pk=emp.operating_point_id)
+            else:
+                op_qs = op_qs.none()
+        self.fields["operating_point"].queryset = op_qs
+
+        from business.models import Supplier
+        self.fields["supplier"].queryset = (
+            Supplier.objects.filter(is_active=True).order_by("name")
+        )
+
+    def clean(self):
+        c = super().clean()
+        qty = c.get("quantity")
+        unit_cost = c.get("unit_cost")
+        if qty is not None and unit_cost is not None:
+            c["total_cost"] = (qty * unit_cost).quantize(Decimal("0.01"))
+        return c
 class CheckoutForm(forms.Form):
     operating_point = forms.ModelChoiceField(queryset=OperatingPoint.objects.none())
     payment_method = forms.ChoiceField(choices=Sale.PaymentMethod.choices)

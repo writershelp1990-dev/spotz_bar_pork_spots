@@ -1,0 +1,98 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+
+<h1>Deliveries</h1>
+<p class="muted">
+  {% if is_director %}
+    All deliveries awaiting your verification, plus the most recent
+    completed or rejected entries.
+  {% else %}
+    Your recent deliveries. Pending rows await Director verification.
+  {% endif %}
+</p>
+
+{% if messages %}
+  {% for m in messages %}<p class="msg msg-{{ m.tags }}">{{ m }}</p>{% endfor %}
+{% endif %}
+
+<h2>Pending verification ({{ pending|length }})</h2>
+<table class="receipts-table">
+  <thead>
+    <tr>
+      <th>Receipt #</th><th>Product</th><th>Location</th><th>Qty</th>
+      <th>Unit cost</th><th>Total</th><th>Supplier</th>
+      <th>Invoice</th><th>Recorded by</th><th>When</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in pending %}
+    <tr>
+      <td><a href="{% url 'sales:receipt_detail' r.pk %}">{{ r.receipt_number }}</a></td>
+      <td>{{ r.product.name }}</td>
+      <td>{{ r.operating_point.code }}</td>
+      <td>{{ r.quantity }} {{ r.unit.abbreviation }}</td>
+      <td>{{ r.unit_cost }}</td>
+      <td>{{ r.total_cost }}</td>
+      <td>{{ r.supplier.name }}</td>
+      <td>{{ r.invoice_number|default:"—" }}</td>
+      <td>{{ r.received_by.username }}</td>
+      <td>{{ r.received_at }}</td>
+      <td>
+        {% if is_director %}
+          <form method="post" action="{% url 'sales:receipt_verify' r.pk %}" style="display:inline">
+            {% csrf_token %}
+            <input type="text" name="notes" placeholder="notes (optional)">
+            <button type="submit">Verify</button>
+          </form>
+          <form method="post" action="{% url 'sales:receipt_reject' r.pk %}" style="display:inline">
+            {% csrf_token %}
+            <input type="text" name="notes" placeholder="reason (required)" required>
+            <button type="submit">Reject</button>
+          </form>
+        {% else %}
+          <span class="muted small">Awaiting Director</span>
+        {% endif %}
+      </td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="11" class="muted">Nothing pending.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Recent history</h2>
+<table class="receipts-table">
+  <thead>
+    <tr>
+      <th>Receipt #</th><th>Product</th><th>Qty</th><th>Total</th>
+      <th>Status</th><th>Verified by</th><th>When</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in recent %}
+    <tr>
+      <td><a href="{% url 'sales:receipt_detail' r.pk %}">{{ r.receipt_number }}</a></td>
+      <td>{{ r.product.name }}</td>
+      <td>{{ r.quantity }} {{ r.unit.abbreviation }}</td>
+      <td>{{ r.total_cost }}</td>
+      <td>{{ r.get_status_display }}</td>
+      <td>{{ r.verified_by.username|default:"—" }}</td>
+      <td>{{ r.received_at }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No history yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<style>
+.receipts-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.receipts-table th, .receipts-table td {
+  padding: 6px 8px; border-bottom: 1px solid #e5e7eb; text-align: left;
+  vertical-align: top; font-size: 0.92em;
+}
+.muted { color: #6b7280; }
+.msg { padding: 8px 12px; border-radius: 6px; background: #eef; margin: 6px 0; }
+</style>
+
+{% endblock %}

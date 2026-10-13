@@ -1,0 +1,58 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+
+<h1>Receipt {{ receipt.receipt_number }}</h1>
+<p class="muted">Status: <strong>{{ receipt.get_status_display }}</strong></p>
+
+{% if messages %}
+  {% for m in messages %}<p class="msg msg-{{ m.tags }}">{{ m }}</p>{% endfor %}
+{% endif %}
+
+<table class="detail-table">
+  <tr><th>Product</th><td>{{ receipt.product.name }} ({{ receipt.product.code|default:"—" }})</td></tr>
+  <tr><th>Operating point</th><td>{{ receipt.operating_point.code }} — {{ receipt.operating_point.name }}</td></tr>
+  <tr><th>Quantity</th><td>{{ receipt.quantity }} {{ receipt.unit.abbreviation }}</td></tr>
+  <tr><th>Unit cost</th><td>{{ receipt.unit_cost }}</td></tr>
+  <tr><th>Total cost</th><td>{{ receipt.total_cost }}</td></tr>
+  <tr><th>Supplier</th><td>{{ receipt.supplier.name }}</td></tr>
+  <tr><th>Invoice number</th><td>{{ receipt.invoice_number|default:"—" }}</td></tr>
+  <tr><th>Invoice date</th><td>{{ receipt.supplier_invoice.invoice_date|default:"—" }}</td></tr>
+  <tr><th>Received by</th><td>{{ receipt.received_by.username }} at {{ receipt.received_at }}</td></tr>
+  {% if receipt.verified_by %}
+    <tr><th>Verified by</th><td>{{ receipt.verified_by.username }} at {{ receipt.verified_at }}</td></tr>
+  {% endif %}
+  {% if receipt.verification_notes %}
+    <tr><th>Verification notes</th><td>{{ receipt.verification_notes }}</td></tr>
+  {% endif %}
+  {% if receipt.resulting_movement %}
+    <tr><th>Ledger movement</th><td>#{{ receipt.resulting_movement.pk }} — {{ receipt.resulting_movement.quantity_delta }}</td></tr>
+  {% endif %}
+  {% if receipt.notes %}
+    <tr><th>Notes</th><td>{{ receipt.notes }}</td></tr>
+  {% endif %}
+</table>
+
+{% if is_director and receipt.status == "PENDING" %}
+  <h2>Verify or reject</h2>
+  <form method="post" action="{% url 'sales:receipt_verify' receipt.pk %}" style="display:inline-block; margin-right:12px">
+    {% csrf_token %}
+    <input type="text" name="notes" placeholder="notes (optional)">
+    <button type="submit">Verify delivery</button>
+  </form>
+  <form method="post" action="{% url 'sales:receipt_reject' receipt.pk %}" style="display:inline-block">
+    {% csrf_token %}
+    <input type="text" name="notes" placeholder="reason (required)" required>
+    <button type="submit">Reject delivery</button>
+  </form>
+{% endif %}
+
+<p style="margin-top:16px"><a href="{% url 'sales:pending_receipts' %}">Back to Deliveries</a></p>
+
+<style>
+.detail-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.detail-table th, .detail-table td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+.muted { color: #6b7280; }
+.msg { padding: 8px 12px; border-radius: 6px; background: #eef; margin: 6px 0; }
+</style>
+
+{% endblock %}

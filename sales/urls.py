@@ -35,4 +35,8 @@ urlpatterns = [
     path("stock/alert-rules/new/", views.stock_alert_rule_create, name="stock_alert_rule_create"),
     path("stock/alert-rules/<int:pk>/edit/", views.stock_alert_rule_edit, name="stock_alert_rule_edit"),
     path("stock/alert-rules/<int:pk>/toggle/", views.stock_alert_rule_toggle, name="stock_alert_rule_toggle"),
+    path("stock/receipts/", views.pending_receipts_list, name="pending_receipts"),
+    path("stock/receipts/<int:pk>/", views.receipt_detail, name="receipt_detail"),
+    path("stock/receipts/<int:pk>/verify/", views.receipt_verify, name="receipt_verify"),
+    path("stock/receipts/<int:pk>/reject/", views.receipt_reject, name="receipt_reject"),
 ]

@@ -63,7 +63,7 @@
 
             <a href="/sales/stock/">
                 <span class="nav-icon">◉</span>
-                <span>Stock</span>
+                <span>Stock{% if pending_receipt_count %} ({{ pending_receipt_count }}){% endif %}</span>
             </a>
 
             <a href="#" aria-disabled="true" title="Feature not implemented yet" class="feature-unavailable">

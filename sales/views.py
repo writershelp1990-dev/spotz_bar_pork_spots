@@ -528,24 +528,164 @@ def stock_home(request):
 
 @login_required
 def stock_receive(request):
-    director_required(request.user)
-    form = ReceiptForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
-        try:
-            movement = receive_stock(
-                user=request.user,
-                product=form.cleaned_data["product"],
-                operating_point=form.cleaned_data["operating_point"],
-                quantity=form.cleaned_data["quantity"],
-                reference=form.cleaned_data["reference"],
-                reason=form.cleaned_data["reason"]
-            )
-            messages.success(request, f"Received {movement.quantity_delta} {movement.product.selling_unit.abbreviation} of {movement.product.display_name}.")
-            return redirect("sales:stock")
-        except (ValidationError, PermissionDenied) as exc:
-            form.add_error(None, getattr(exc, "message", str(exc)))
-    return render(request, "sales/form.html", {"form": form, "heading": "Receive stock"})
+    """Receive stock.
 
+    Director submissions apply immediately. Attendant submissions create
+    a PENDING StockReceipt and require Director verification before any
+    balance change.
+    """
+    from .services import record_delivery
+    from .forms import ReceiptForm
+
+    user = request.user
+    if not (getattr(user, "is_director", False)
+            or getattr(user, "is_active_staff_user", False)):
+        raise PermissionDenied("Active staff account required.")
+
+    if request.method == "POST":
+        form = ReceiptForm(request.POST, user=user)
+        if form.is_valid():
+            try:
+                receipt = record_delivery(
+                    user=user,
+                    product=form.cleaned_data["product"],
+                    operating_point=form.cleaned_data["operating_point"],
+                    quantity=form.cleaned_data["quantity"],
+                    unit=form.cleaned_data["product"].selling_unit,
+                    unit_cost=form.cleaned_data["unit_cost"],
+                    supplier=form.cleaned_data["supplier"],
+                    invoice_number=form.cleaned_data.get("invoice_number", ""),
+                    invoice_date=form.cleaned_data.get("invoice_date"),
+                    notes=form.cleaned_data.get("notes", ""),
+                    reference=form.cleaned_data.get("reference", ""),
+                )
+                if getattr(user, "is_director", False):
+                    messages.success(
+                        request,
+                        f"Delivery applied. Receipt {receipt.receipt_number} "
+                        f"recorded and stock updated.")
+                else:
+                    messages.success(
+                        request,
+                        f"Delivery recorded as PENDING. Receipt "
+                        f"{receipt.receipt_number} awaits Director verification.")
+                return redirect("sales:stock")
+            except (PermissionDenied, ValidationError) as e:
+                messages.error(request, str(e))
+    else:
+        form = ReceiptForm(user=user)
+
+    return render(request, "sales/stock_receive.html", {
+        "form": form,
+        "is_director": getattr(user, "is_director", False),
+    })
+
+
+@login_required
+def pending_receipts_list(request):
+    """List pending deliveries.
+
+    Director sees all pending receipts.
+    Attendant sees their own pending receipts only.
+    """
+    from .models import StockReceipt
+
+    user = request.user
+    if not (getattr(user, "is_director", False)
+            or getattr(user, "is_active_staff_user", False)):
+        raise PermissionDenied("Active staff account required.")
+
+    qs = (StockReceipt.objects
+          .select_related("product", "operating_point", "supplier",
+                          "supplier_invoice", "received_by", "verified_by"))
+    if getattr(user, "is_director", False):
+        pending = qs.filter(status=StockReceipt.Status.PENDING)
+        recent = qs.exclude(status=StockReceipt.Status.PENDING)[:50]
+    else:
+        pending = qs.filter(status=StockReceipt.Status.PENDING, received_by=user)
+        recent = qs.filter(received_by=user).exclude(
+            status=StockReceipt.Status.PENDING)[:50]
+
+    return render(request, "sales/pending_receipts.html", {
+        "pending": pending.order_by("-received_at"),
+        "recent": recent,
+        "is_director": getattr(user, "is_director", False),
+    })
+
+
+@login_required
+def receipt_detail(request, pk):
+    """Show one receipt. Directors see verify / reject forms."""
+    from .models import StockReceipt
+
+    user = request.user
+    receipt = get_object_or_404(
+        StockReceipt.objects.select_related(
+            "product", "operating_point", "unit", "supplier",
+            "supplier_invoice", "received_by", "verified_by",
+            "resulting_movement",
+        ),
+        pk=pk,
+    )
+
+    is_dir = getattr(user, "is_director", False)
+    is_owner = receipt.received_by_id == user.pk
+    if not (is_dir or is_owner):
+        raise PermissionDenied("No access to this receipt.")
+
+    return render(request, "sales/receipt_detail.html", {
+        "receipt": receipt,
+        "is_director": is_dir,
+    })
+
+
+@login_required
+def receipt_verify(request, pk):
+    """Director-only: verify a pending receipt."""
+    from .models import StockReceipt
+    from .services import verify_delivery
+
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Only the Director may verify deliveries.")
+    if request.method != "POST":
+        raise PermissionDenied("POST required.")
+
+    receipt = get_object_or_404(StockReceipt, pk=pk)
+    notes = request.POST.get("notes", "").strip()
+    try:
+        verify_delivery(user=request.user, receipt=receipt, notes=notes)
+        messages.success(
+            request,
+            f"Receipt {receipt.receipt_number} verified. Stock updated.")
+    except (PermissionDenied, ValidationError) as e:
+        messages.error(request, str(e))
+    return redirect("sales:pending_receipts")
+
+
+@login_required
+def receipt_reject(request, pk):
+    """Director-only: reject a pending receipt with a reason."""
+    from .models import StockReceipt
+    from .services import reject_delivery
+
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Only the Director may reject deliveries.")
+    if request.method != "POST":
+        raise PermissionDenied("POST required.")
+
+    receipt = get_object_or_404(StockReceipt, pk=pk)
+    notes = request.POST.get("notes", "").strip()
+    if not notes:
+        messages.error(request, "A rejection reason is required.")
+        return redirect("sales:receipt_detail", pk=receipt.pk)
+
+    try:
+        reject_delivery(user=request.user, receipt=receipt, notes=notes)
+        messages.success(
+            request, f"Receipt {receipt.receipt_number} rejected.")
+    except (PermissionDenied, ValidationError) as e:
+        messages.error(request, str(e))
+    return redirect("sales:pending_receipts")
 @login_required
 def sales_history(request):
     require_active_user(request.user)

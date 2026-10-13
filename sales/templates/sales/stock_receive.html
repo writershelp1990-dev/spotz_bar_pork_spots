@@ -1,0 +1,88 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+
+<h1>Receive stock</h1>
+<p class="muted">
+  {% if is_director %}
+    Deliveries you record are applied immediately and appear on the Stock page.
+  {% else %}
+    Deliveries you record are marked <strong>PENDING</strong> until the
+    Director verifies them. Stock levels don't change until then.
+  {% endif %}
+</p>
+
+{% if messages %}
+  {% for m in messages %}<p class="msg msg-{{ m.tags }}">{{ m }}</p>{% endfor %}
+{% endif %}
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="form-errors">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <p>
+    <label>Product<br>{{ form.product }}</label>
+    {% if form.product.errors %}<span class="field-error">{{ form.product.errors }}</span>{% endif %}
+  </p>
+
+  <p>
+    <label>Operating point<br>{{ form.operating_point }}</label>
+    {% if form.operating_point.errors %}<span class="field-error">{{ form.operating_point.errors }}</span>{% endif %}
+  </p>
+
+  <p>
+    <label>Quantity<br>{{ form.quantity }}</label>
+    {% if form.quantity.errors %}<span class="field-error">{{ form.quantity.errors }}</span>{% endif %}
+  </p>
+
+  <p>
+    <label>Unit cost (KES)<br>{{ form.unit_cost }}</label>
+    <span class="muted small">{{ form.unit_cost.help_text }}</span>
+    {% if form.unit_cost.errors %}<span class="field-error">{{ form.unit_cost.errors }}</span>{% endif %}
+  </p>
+
+  <p>
+    <label>Supplier<br>{{ form.supplier }}</label>
+    <span class="muted small">{{ form.supplier.help_text }}</span>
+    {% if form.supplier.errors %}<span class="field-error">{{ form.supplier.errors }}</span>{% endif %}
+  </p>
+
+  <p>
+    <label>Invoice number<br>{{ form.invoice_number }}</label>
+    <span class="muted small">{{ form.invoice_number.help_text }}</span>
+    {% if form.invoice_number.errors %}<span class="field-error">{{ form.invoice_number.errors }}</span>{% endif %}
+  </p>
+
+  <p>
+    <label>Invoice date<br>{{ form.invoice_date }}</label>
+  </p>
+
+  <p>
+    <label>Reference<br>{{ form.reference }}</label>
+  </p>
+
+  <p>
+    <label>Notes<br>{{ form.notes }}</label>
+  </p>
+
+  <p>
+    {% if is_director %}
+      <button type="submit">Save (applies immediately)</button>
+    {% else %}
+      <button type="submit">Record delivery (awaits Director verification)</button>
+    {% endif %}
+    <a href="{% url 'sales:stock' %}">Cancel</a>
+  </p>
+</form>
+
+<style>
+.field-error { color: #b91c1c; display: block; font-size: 0.9em; }
+.form-errors { padding: 10px 14px; background: #fee2e2; border-radius: 8px; margin-bottom: 12px; }
+.msg { padding: 8px 12px; border-radius: 6px; background: #eef; margin: 6px 0; }
+.muted { color: #6b7280; }
+.small { font-size: 0.9em; }
+</style>
+
+{% endblock %}
