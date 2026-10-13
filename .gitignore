@@ -196,3 +196,11 @@ stock_scoping_*/
 stock_scoping_fix_*/
 stock_tpl_restock_col_*/
 stock_restock_alerts_*/
+
+# Receiving/payment workflow development artifacts
+receiving_payment_inspect_*/
+receiving_stageA_*/
+receiving_stageA_fix_*/
+receiving_stageB_*/
+receiving_stageC_*/
+receiving_stageD_*/

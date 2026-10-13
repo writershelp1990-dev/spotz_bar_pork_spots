@@ -185,6 +185,10 @@ class StockLedger(models.Model):
         related_name="stock_movements"
     )
     reference = models.CharField(max_length=80, blank=True)
+    unit_cost = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text="Cost per unit at the moment of this movement, where known.",
+    )
     reason = models.TextField(blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT
@@ -439,3 +443,214 @@ class StockAlertNotification(models.Model):
             ),
         ]
         ordering = ["-created_at"]
+
+# =========================================================================
+# Receiving, invoice, and payment workflow
+#
+# StockReceipt captures what was physically delivered. Attendant entries
+# are PENDING until a Director verifies them; Director entries self-verify.
+# Verification calls sales.services.receive_stock() to update StockBalance
+# and write the StockLedger row.
+#
+# SupplierInvoice is one row per supplier document. Multiple receipts may
+# link to the same invoice (e.g. beer + soda + pork on one invoice).
+#
+# InvoicePayment is one row per payment made against an invoice. Payment
+# fields are Director-only: no view or service exposes them to staff.
+# =========================================================================
+class StockReceipt(models.Model):
+    """A physical delivery of stock, pending or verified."""
+
+    class Status(models.TextChoices):
+        PENDING = "PENDING", "Pending verification"
+        VERIFIED = "VERIFIED", "Verified"
+        REJECTED = "REJECTED", "Rejected"
+
+    receipt_number = models.CharField(max_length=40, unique=True)
+    product = models.ForeignKey(
+        "catalog.Product", on_delete=models.PROTECT,
+        related_name="stock_receipts",
+    )
+    operating_point = models.ForeignKey(
+        "accounts.OperatingPoint", on_delete=models.PROTECT,
+        related_name="stock_receipts",
+    )
+    quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    unit = models.ForeignKey(
+        "catalog.UnitOfMeasure", on_delete=models.PROTECT,
+        related_name="stock_receipts",
+    )
+
+    # Purchase cost captured at receipt time (per delivery, not per product).
+    unit_cost = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        help_text="Price paid per unit at receipt.",
+    )
+    total_cost = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        help_text="quantity * unit_cost, stored for reporting speed.",
+    )
+
+    supplier = models.ForeignKey(
+        "business.Supplier", on_delete=models.PROTECT,
+        related_name="stock_receipts",
+    )
+    invoice_number = models.CharField(
+        max_length=80, blank=True,
+        help_text="The supplier's invoice or delivery note number.",
+    )
+    notes = models.TextField(blank=True)
+
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="stock_receipts_recorded",
+    )
+    received_at = models.DateTimeField(auto_now_add=True)
+
+    status = models.CharField(
+        max_length=12, choices=Status.choices, default=Status.PENDING,
+    )
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="stock_receipts_verified", null=True, blank=True,
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verification_notes = models.TextField(blank=True)
+
+    supplier_invoice = models.ForeignKey(
+        "sales.SupplierInvoice", on_delete=models.SET_NULL,
+        related_name="receipts", null=True, blank=True,
+    )
+    resulting_movement = models.OneToOneField(
+        StockLedger, on_delete=models.SET_NULL,
+        related_name="source_receipt", null=True, blank=True,
+    )
+
+    class Meta:
+        ordering = ["-received_at", "-id"]
+        indexes = [
+            models.Index(fields=["status", "-received_at"]),
+            models.Index(fields=["operating_point", "status"]),
+            models.Index(fields=["supplier", "-received_at"]),
+        ]
+        verbose_name = "Stock receipt"
+        verbose_name_plural = "Stock receipts"
+
+    def __str__(self):
+        return (
+            f"{self.receipt_number}: {self.quantity} x {self.product.name} "
+            f"@ {self.operating_point.code} [{self.status}]"
+        )
+
+
+class SupplierInvoice(models.Model):
+    """One row per supplier invoice/document. Payment fields are Director-only."""
+
+    class PaymentStatus(models.TextChoices):
+        UNPAID = "UNPAID", "Unpaid"
+        PARTIAL = "PARTIAL", "Partially paid"
+        PAID = "PAID", "Paid"
+
+    internal_reference = models.CharField(
+        max_length=40, unique=True,
+        help_text="Our own identifier, e.g. INV-20261013-0001.",
+    )
+    invoice_number = models.CharField(
+        max_length=80, blank=True,
+        help_text="The supplier's own invoice number.",
+    )
+    supplier = models.ForeignKey(
+        "business.Supplier", on_delete=models.PROTECT,
+        related_name="invoices",
+    )
+    invoice_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date on the supplier's document.",
+    )
+
+    computed_total_amount = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0,
+        help_text="Sum of linked receipts' total_cost.",
+    )
+    stated_total_amount = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text="Optional: what the supplier's paper document says.",
+    )
+    amount_paid = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0,
+    )
+    balance_due = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0,
+        help_text="computed_total_amount - amount_paid. May be negative on "
+                  "overpayment (a credit toward future deliveries).",
+    )
+    payment_status = models.CharField(
+        max_length=12, choices=PaymentStatus.choices,
+        default=PaymentStatus.UNPAID,
+    )
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="supplier_invoices_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["supplier", "-created_at"]),
+            models.Index(fields=["payment_status", "-created_at"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["supplier", "invoice_number"],
+                condition=models.Q(invoice_number__gt=""),
+                name="unique_supplier_invoice_number_when_set",
+            ),
+        ]
+        verbose_name = "Supplier invoice"
+        verbose_name_plural = "Supplier invoices"
+
+    def __str__(self):
+        return f"{self.internal_reference} ({self.supplier}) [{self.payment_status}]"
+
+
+class InvoicePayment(models.Model):
+    """A payment made against a SupplierInvoice. Director-only."""
+
+    class Method(models.TextChoices):
+        CASH = "CASH", "Cash"
+        MPESA = "MPESA", "M-Pesa"
+        BANK_TRANSFER = "BANK_TRANSFER", "Bank Transfer"
+        CHEQUE = "CHEQUE", "Cheque"
+        OTHER = "OTHER", "Other"
+
+    invoice = models.ForeignKey(
+        SupplierInvoice, on_delete=models.CASCADE,
+        related_name="payments",
+    )
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    paid_at = models.DateTimeField()
+    paid_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="invoice_payments_made",
+    )
+    method = models.CharField(max_length=20, choices=Method.choices)
+    reference = models.CharField(
+        max_length=80, blank=True,
+        help_text="M-Pesa code, cheque number, bank reference, etc.",
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-paid_at", "-id"]
+        indexes = [
+            models.Index(fields=["invoice", "-paid_at"]),
+        ]
+        verbose_name = "Invoice payment"
+        verbose_name_plural = "Invoice payments"
+
+    def __str__(self):
+        return f"{self.amount} to {self.invoice.internal_reference} on {self.paid_at}"

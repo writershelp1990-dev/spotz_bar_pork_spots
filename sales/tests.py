@@ -885,3 +885,280 @@ class StockScopingTests(TestCase):
             body = r.content.decode()
             self.assertNotIn("ScopingBarOnlyProduct", body)
             self.assertNotIn("ScopingKitchenOnlyProduct", body)
+
+# =========================================================================
+# Receiving workflow, invoice, and payment tests (Stage A)
+# =========================================================================
+class ReceivingWorkflowBase(TestCase):
+    """Shared fixtures for the receiving workflow test classes."""
+
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        cls.bar_role, _ = RoleDefinition.objects.get_or_create(
+            code="BAR_ATTENDANT", defaults={"name": "Bar Attendant"})
+
+        cls.director = User.objects.create_user(
+            username="rec_dir", password="pw", role="DIRECTOR",
+            role_definition=cls.dir_role, is_active=True, is_active_staff=True)
+
+        cls.bar, _ = OperatingPoint.objects.get_or_create(
+            code="REC-BAR", defaults={"name": "Rec Bar", "is_active": True})
+        cls.kitchen, _ = OperatingPoint.objects.get_or_create(
+            code="REC-KIT", defaults={"name": "Rec Kitchen", "is_active": True})
+
+        cls.bar_user = User.objects.create_user(
+            username="rec_bar", password="pw", role="BAR_ATTENDANT",
+            role_definition=cls.bar_role, is_active=True, is_active_staff=True)
+        Employee.objects.create(
+            user=cls.bar_user, operating_point=cls.bar,
+            employment_status=Employee.EmploymentStatus.ACTIVE)
+
+        cls.unit, _ = UnitOfMeasure.objects.get_or_create(
+            abbreviation="recu",
+            defaults={"name": "Receiving Unit", "unit_type": "COUNT", "is_active": True})
+        cls.cat, _ = Category.objects.get_or_create(
+            name="Receiving Test", defaults={"is_active": True})
+        cls.product = Product.objects.create(
+            name="ReceivingTestProduct", code="REC-PROD-1",
+            category=cls.cat,
+            selling_unit=cls.unit, purchase_unit=cls.unit,
+            purchase_to_sale_ratio=Decimal("1"),
+            product_type="NON_ALCOHOLIC",
+            is_active=True, track_inventory=True)
+
+        from business.models import Supplier
+        cls.supplier = Supplier.objects.create(
+            name="Test Supplier Ltd", is_active=True)
+
+    def make_receipt(self, *, status=None, qty="10.000", unit_cost="100.00",
+                     supplier=None, user=None):
+        from sales.models import StockReceipt
+        return StockReceipt.objects.create(
+            receipt_number="RC-TEST-" + str(StockReceipt.objects.count() + 1).zfill(4),
+            product=self.product, operating_point=self.bar,
+            quantity=Decimal(qty), unit=self.unit,
+            unit_cost=Decimal(unit_cost),
+            total_cost=(Decimal(qty) * Decimal(unit_cost)),
+            supplier=supplier or self.supplier,
+            received_by=user or self.bar_user,
+            status=status or StockReceipt.Status.PENDING,
+        )
+
+
+class RecordDeliveryTests(ReceivingWorkflowBase):
+
+    def test_attendant_can_record_pending_delivery(self):
+        from sales.services import record_delivery
+        from sales.models import StockReceipt
+        receipt = record_delivery(
+            user=self.bar_user, product=self.product,
+            operating_point=self.bar,
+            quantity="24.000", unit=self.unit, unit_cost="180.00",
+            supplier=self.supplier, invoice_number="INV-001",
+        )
+        self.assertEqual(receipt.status, StockReceipt.Status.PENDING)
+        self.assertEqual(receipt.received_by, self.bar_user)
+        # No balance change
+        self.assertFalse(StockBalance.objects.filter(
+            product=self.product, operating_point=self.bar).exists())
+        # No ledger row
+        self.assertFalse(StockLedger.objects.filter(
+            product=self.product, operating_point=self.bar).exists())
+
+    def test_director_delivery_applies_immediately(self):
+        from sales.services import record_delivery
+        from sales.models import StockReceipt
+        receipt = record_delivery(
+            user=self.director, product=self.product,
+            operating_point=self.bar,
+            quantity="15.000", unit=self.unit, unit_cost="180.00",
+            supplier=self.supplier, invoice_number="INV-002",
+        )
+        self.assertEqual(receipt.status, StockReceipt.Status.VERIFIED)
+        self.assertEqual(receipt.verified_by, self.director)
+        bal = StockBalance.objects.get(
+            product=self.product, operating_point=self.bar)
+        self.assertEqual(bal.quantity, Decimal("15.000"))
+        mov = StockLedger.objects.get(source_receipt=receipt)
+        self.assertEqual(mov.quantity_delta, Decimal("15.000"))
+        self.assertEqual(mov.unit_cost, Decimal("180.00"))
+
+    def test_attendant_cannot_record_at_other_point(self):
+        from sales.services import record_delivery
+        with self.assertRaises(Exception):
+            record_delivery(
+                user=self.bar_user, product=self.product,
+                operating_point=self.kitchen,
+                quantity="5.000", unit=self.unit, unit_cost="100.00",
+                supplier=self.supplier,
+            )
+
+
+class VerifyRejectTests(ReceivingWorkflowBase):
+
+    def test_director_verifies_pending_receipt(self):
+        from sales.services import verify_delivery
+        r = self.make_receipt(qty="20.000", unit_cost="150.00")
+        verified = verify_delivery(user=self.director, receipt=r, notes="OK")
+        self.assertEqual(verified.status, "VERIFIED")
+        bal = StockBalance.objects.get(
+            product=self.product, operating_point=self.bar)
+        self.assertEqual(bal.quantity, Decimal("20.000"))
+
+    def test_attendant_cannot_verify(self):
+        from sales.services import verify_delivery
+        r = self.make_receipt()
+        with self.assertRaises(Exception):
+            verify_delivery(user=self.bar_user, receipt=r)
+
+    def test_director_rejects_pending_receipt(self):
+        from sales.services import reject_delivery
+        r = self.make_receipt()
+        rejected = reject_delivery(
+            user=self.director, receipt=r, notes="Wrong quantity on paper")
+        self.assertEqual(rejected.status, "REJECTED")
+        self.assertFalse(StockBalance.objects.filter(
+            product=self.product, operating_point=self.bar).exists())
+
+    def test_reject_requires_reason(self):
+        from sales.services import reject_delivery
+        r = self.make_receipt()
+        with self.assertRaises(Exception):
+            reject_delivery(user=self.director, receipt=r, notes="")
+
+    def test_verified_receipt_cannot_be_verified_again(self):
+        from sales.services import verify_delivery
+        r = self.make_receipt()
+        verify_delivery(user=self.director, receipt=r)
+        with self.assertRaises(Exception):
+            verify_delivery(user=self.director, receipt=r)
+
+
+class InvoiceTests(ReceivingWorkflowBase):
+
+    def test_first_delivery_creates_invoice(self):
+        from sales.services import record_delivery
+        from sales.models import SupplierInvoice
+        record_delivery(
+            user=self.bar_user, product=self.product,
+            operating_point=self.bar,
+            quantity="10.000", unit=self.unit, unit_cost="100.00",
+            supplier=self.supplier, invoice_number="INV-A",
+        )
+        self.assertEqual(
+            SupplierInvoice.objects.filter(
+                supplier=self.supplier, invoice_number="INV-A").count(),
+            1,
+        )
+
+    def test_second_delivery_reuses_invoice(self):
+        from sales.services import record_delivery
+        from sales.models import SupplierInvoice
+        r1 = record_delivery(
+            user=self.bar_user, product=self.product,
+            operating_point=self.bar,
+            quantity="10.000", unit=self.unit, unit_cost="100.00",
+            supplier=self.supplier, invoice_number="INV-B",
+        )
+        r2 = record_delivery(
+            user=self.bar_user, product=self.product,
+            operating_point=self.bar,
+            quantity="5.000", unit=self.unit, unit_cost="100.00",
+            supplier=self.supplier, invoice_number="INV-B",
+        )
+        self.assertEqual(r1.supplier_invoice_id, r2.supplier_invoice_id)
+        self.assertEqual(
+            SupplierInvoice.objects.filter(
+                supplier=self.supplier, invoice_number="INV-B").count(),
+            1,
+        )
+
+    def test_invoice_total_recomputes_on_verify(self):
+        from sales.services import record_delivery, verify_delivery
+        r = record_delivery(
+            user=self.bar_user, product=self.product,
+            operating_point=self.bar,
+            quantity="10.000", unit=self.unit, unit_cost="100.00",
+            supplier=self.supplier, invoice_number="INV-C",
+        )
+        invoice = r.supplier_invoice
+        # Before verify: computed total is 0 (no verified receipts yet)
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.computed_total_amount, Decimal("0.00"))
+        verify_delivery(user=self.director, receipt=r)
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.computed_total_amount, Decimal("1000.00"))
+        self.assertEqual(invoice.balance_due, Decimal("1000.00"))
+        self.assertEqual(invoice.payment_status, "UNPAID")
+
+
+class PaymentTests(ReceivingWorkflowBase):
+
+    def _make_verified_invoice(self, amount="1000.00"):
+        from sales.services import record_delivery
+        r = record_delivery(
+            user=self.director, product=self.product,
+            operating_point=self.bar,
+            quantity="10.000", unit=self.unit,
+            unit_cost=str(Decimal(amount) / Decimal("10")),
+            supplier=self.supplier,
+            invoice_number="INV-PAY-" + str(StockBalance.objects.count()),
+        )
+        return r.supplier_invoice
+
+    def test_partial_payment_flips_to_partial(self):
+        from sales.services import record_invoice_payment
+        invoice = self._make_verified_invoice("1000.00")
+        record_invoice_payment(
+            user=self.director, invoice=invoice,
+            amount="400.00", method="CASH",
+        )
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.amount_paid, Decimal("400.00"))
+        self.assertEqual(invoice.balance_due, Decimal("600.00"))
+        self.assertEqual(invoice.payment_status, "PARTIAL")
+
+    def test_full_payment_flips_to_paid(self):
+        from sales.services import record_invoice_payment
+        invoice = self._make_verified_invoice("1000.00")
+        record_invoice_payment(
+            user=self.director, invoice=invoice,
+            amount="1000.00", method="MPESA", reference="QGH7X8Z",
+        )
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.amount_paid, Decimal("1000.00"))
+        self.assertEqual(invoice.balance_due, Decimal("0.00"))
+        self.assertEqual(invoice.payment_status, "PAID")
+
+    def test_overpayment_allowed_and_negative_balance(self):
+        from sales.services import record_invoice_payment
+        invoice = self._make_verified_invoice("1000.00")
+        record_invoice_payment(
+            user=self.director, invoice=invoice,
+            amount="1200.00", method="BANK_TRANSFER",
+        )
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.amount_paid, Decimal("1200.00"))
+        self.assertEqual(invoice.balance_due, Decimal("-200.00"))
+        self.assertEqual(invoice.payment_status, "PAID")
+
+    def test_attendant_cannot_record_payment(self):
+        from sales.services import record_invoice_payment
+        invoice = self._make_verified_invoice("1000.00")
+        with self.assertRaises(Exception):
+            record_invoice_payment(
+                user=self.bar_user, invoice=invoice,
+                amount="100.00", method="CASH",
+            )
+
+    def test_payment_rejects_zero_amount(self):
+        from sales.services import record_invoice_payment
+        invoice = self._make_verified_invoice("1000.00")
+        with self.assertRaises(Exception):
+            record_invoice_payment(
+                user=self.director, invoice=invoice,
+                amount="0.00", method="CASH",
+            )
