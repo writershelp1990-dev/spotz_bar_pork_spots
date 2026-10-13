@@ -1,4 +1,4 @@
-﻿"""Business-day service layer.
+"""Business-day service layer.
 
 Centralises deployment logic so it can be called from signals, views,
 and management commands without duplicating business rules.
@@ -23,12 +23,10 @@ def _eligible_for_auto_deploy(employee) -> bool:
     point = employee.operating_point
     if point is None or not point.is_active:
         return False
-    try:
-        from accounts.employee_management import effective_employment_status
-    except ImportError:
-        from accounts.models import effective_employment_status  # fallback
-    status = effective_employment_status(employee)
-    return status == Employee.EmploymentStatus.ACTIVE
+    # Conservative: only auto-deploy employees whose status is plainly ACTIVE.
+    # Suspended / on-leave / off-duty / terminated employees are skipped —
+    # the Director can still deploy them manually if needed.
+    return employee.employment_status == Employee.EmploymentStatus.ACTIVE
 
 
 def _auto_deploy_actor(business_day):
