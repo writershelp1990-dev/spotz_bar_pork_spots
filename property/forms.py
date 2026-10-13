@@ -150,18 +150,6 @@ class RelocationRequestForm(forms.ModelForm):
                     )
         return cleaned
 
-class RelocationRequestForm(forms.ModelForm):
-    class Meta:
-        model = AssetRelocation
-        fields = [
-            "destination_area", "reason", "condition_before",
-            "receiving_attendant", "expected_transfer_date", "notes",
-        ]
-        widgets = {
-            "reason": forms.Textarea(attrs={"rows": 3}),
-            "notes": forms.Textarea(attrs={"rows": 2}),
-            "expected_transfer_date": forms.DateInput(attrs={"type": "date"}),
-        }
 
     def __init__(self, *args, user=None, asset=None, allowed_areas=None, **kwargs):
         """Rule A: the destination list is every active area except the

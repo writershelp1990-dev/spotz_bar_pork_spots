@@ -83,13 +83,13 @@ class ServiceTestBase(TestCase):
 
 class TransferCreateTests(ServiceTestBase):
 
-    def test_creates_pending_transfer(self):
+    def test_creates_requested_transfer(self):
         t = services.create_transfer(
             user=self.but_user, product=self.pork,
             source_point=self.butchery, destination_point=self.kitchen,
             quantity="5.000", reason="Kitchen needs pork",
         )
-        self.assertEqual(t.status, StockTransfer.Status.PENDING)
+        self.assertEqual(t.status, StockTransfer.Status.REQUESTED)
         self.assertEqual(t.product, self.pork)
         self.assertEqual(t.source_point, self.butchery)
         self.assertEqual(t.destination_point, self.kitchen)
@@ -126,101 +126,6 @@ class TransferCreateTests(ServiceTestBase):
                 source_point=self.butchery, destination_point=self.kitchen,
                 quantity="5.000", reason="not tracked",
             )
-
-
-class TransferApproveCompleteTests(ServiceTestBase):
-
-    def _new_transfer(self, qty="5.000"):
-        return services.create_transfer(
-            user=self.but_user, product=self.pork,
-            source_point=self.butchery, destination_point=self.kitchen,
-            quantity=qty, reason="test",
-        )
-
-    def test_only_director_approves(self):
-        t = self._new_transfer()
-        with self.assertRaises(PermissionDenied):
-            services.approve_transfer(transfer=t, user=self.but_user)
-
-    def test_director_approves(self):
-        t = self._new_transfer()
-        t2 = services.approve_transfer(transfer=t, user=self.director)
-        self.assertEqual(t2.status, StockTransfer.Status.APPROVED)
-        self.assertEqual(t2.approved_by, self.director)
-        self.assertIsNotNone(t2.approved_at)
-
-    def test_only_director_completes(self):
-        t = self._new_transfer()
-        services.approve_transfer(transfer=t, user=self.director)
-        with self.assertRaises(PermissionDenied):
-            services.complete_transfer(transfer=t, user=self.but_user)
-
-    def test_complete_moves_stock_and_writes_two_ledger_rows(self):
-        self.set_stock(self.pork, self.butchery, "10.000")
-        self.set_stock(self.pork, self.kitchen, "0.000")
-
-        t = self._new_transfer("4.000")
-        services.approve_transfer(transfer=t, user=self.director)
-        services.complete_transfer(transfer=t, user=self.director)
-
-        self.set_stock(self.pork, self.butchery, "10.000")
-        self.set_stock(self.pork, self.kitchen, "0.000")
-        # Re-create to test from a clean base
-        t2 = self._new_transfer("4.000")
-        services.approve_transfer(transfer=t2, user=self.director)
-        services.complete_transfer(transfer=t2, user=self.director)
-
-        src = StockBalance.objects.get(product=self.pork, operating_point=self.butchery)
-        dst = StockBalance.objects.get(product=self.pork, operating_point=self.kitchen)
-        self.assertEqual(src.quantity, Decimal("6.000"))
-        self.assertEqual(dst.quantity, Decimal("4.000"))
-
-        out = StockLedger.objects.filter(
-            movement_type=StockLedger.MovementType.TRANSFER_OUT,
-            reference=t.transfer_number)
-        inb = StockLedger.objects.filter(
-            movement_type=StockLedger.MovementType.TRANSFER_IN,
-            reference=t.transfer_number)
-        self.assertEqual(out.count(), 1)
-        self.assertEqual(inb.count(), 1)
-        self.assertEqual(out.first().quantity_delta, Decimal("-4.000"))
-        self.assertEqual(inb.first().quantity_delta, Decimal("4.000"))
-
-    def test_insufficient_source_rejected_and_nothing_written(self):
-        self.set_stock(self.pork, self.butchery, "2.000")
-        self.set_stock(self.pork, self.kitchen, "0.000")
-        t = self._new_transfer("5.000")
-        services.approve_transfer(transfer=t, user=self.director)
-        with self.assertRaises(ValidationError):
-            services.complete_transfer(transfer=t, user=self.director)
-        src = StockBalance.objects.get(product=self.pork, operating_point=self.butchery)
-        dst = StockBalance.objects.get(product=self.pork, operating_point=self.kitchen)
-        self.assertEqual(src.quantity, Decimal("2.000"))
-        self.assertEqual(dst.quantity, Decimal("0.000"))
-
-    def test_cannot_complete_twice(self):
-        self.set_stock(self.pork, self.butchery, "10.000")
-        t = self._new_transfer("3.000")
-        services.approve_transfer(transfer=t, user=self.director)
-        services.complete_transfer(transfer=t, user=self.director)
-        with self.assertRaises(ValidationError):
-            services.complete_transfer(transfer=t, user=self.director)
-
-    def test_cancel_requires_reason(self):
-        t = self._new_transfer("1.000")
-        with self.assertRaises(ValidationError):
-            services.cancel_transfer(transfer=t, user=self.director, reason="")
-
-    def test_cancel_pending_does_not_touch_balances(self):
-        self.set_stock(self.pork, self.butchery, "10.000")
-        t = self._new_transfer("4.000")
-        services.cancel_transfer(transfer=t, user=self.director, reason="not needed")
-        # The service re-fetches the row under select_for_update, so refresh
-        # the local instance before asserting.
-        t.refresh_from_db()
-        src = StockBalance.objects.get(product=self.pork, operating_point=self.butchery)
-        self.assertEqual(src.quantity, Decimal("10.000"))
-        self.assertEqual(t.status, StockTransfer.Status.CANCELLED)
 
 
 class WastageTests(ServiceTestBase):

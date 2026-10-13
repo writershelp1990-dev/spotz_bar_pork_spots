@@ -1,0 +1,156 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_quicknav %}{% endblock %}
+{% block stock_content %}
+
+<div style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+  <div>
+    <span class="muted small" style="letter-spacing:.1em">{{ point.code }}</span>
+    <h1 style="margin:4px 0 0 0">{{ point.name }}</h1>
+    {% if point.description %}<p class="muted small" style="margin:4px 0 0 0">{{ point.description }}</p>{% endif %}
+  </div>
+  <div style="text-align:right">
+    {% if day_state == "OPEN" %}
+      <span class="badge" style="background:#dcfce7;font-weight:600">BUSINESS DAY OPEN</span>
+      <div class="muted small" style="margin-top:4px">{{ day_date }} &middot; opened {{ day_timestamp|date:"Y-m-d H:i" }}</div>
+    {% elif day_state == "CLOSED" %}
+      <span class="badge" style="background:#fee2e2;font-weight:600">BUSINESS DAY CLOSED</span>
+      <div class="muted small" style="margin-top:4px">{{ day_date }} &middot; closed {{ day_timestamp|date:"Y-m-d H:i" }}</div>
+    {% else %}
+      <span class="badge" style="background:#e5e7eb;font-weight:600">READY TO START</span>
+      <div class="muted small" style="margin-top:4px">No business day yet</div>
+    {% endif %}
+  </div>
+</div>
+
+<h2 style="margin-top:24px">Sales at a glance</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0">
+  <div style="padding:14px;border:1px solid #e5e7eb;border-radius:8px">
+    <div class="muted small">Transactions</div>
+    <div style="font-size:1.8em;font-weight:600">{{ sales_count }}</div>
+  </div>
+  <div style="padding:14px;border:1px solid #e5e7eb;border-radius:8px">
+    <div class="muted small">Total sales</div>
+    <div style="font-size:1.8em;font-weight:600">{{ sales_total|floatformat:2 }}</div>
+  </div>
+  <div style="padding:14px;border:1px solid #e5e7eb;border-radius:8px">
+    <div class="muted small">Payment methods</div>
+    <div style="font-size:.95em;margin-top:4px">
+      {% for p in payment_mix %}
+        <div>{{ p.payment_method }} &mdash; {{ p.total|floatformat:2 }} ({{ p.count }})</div>
+      {% empty %}
+        <span class="muted small">No sales yet</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if top_sellers %}
+<h3 style="margin-top:20px">Top sellers</h3>
+<table class="stock-table">
+  <tr><th>Product</th><th>Qty</th><th>Revenue</th></tr>
+  {% for t in top_sellers %}
+    <tr>
+      <td>{{ t.product_name_snapshot }}</td>
+      <td>{{ t.qty|floatformat:3 }} {{ t.unit_name_snapshot }}</td>
+      <td>{{ t.revenue|floatformat:2 }}</td>
+    </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+<h2 style="margin-top:28px">Staff</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div>
+    <h3 class="muted small" style="text-transform:uppercase;letter-spacing:.05em">Deployed today</h3>
+    {% if deployed %}
+      <ul style="list-style:none;padding:0;margin:0">
+        {% for d in deployed %}
+          <li style="padding:8px 0;border-bottom:1px solid #f3f4f6">
+            {{ d.employee.user.get_full_name|default:d.employee.user.username }}
+            <span class="muted small">&middot; {{ d.start_time|time:"H:i" }}&ndash;{{ d.end_time|time:"H:i" }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted small">Nobody deployed to {{ point.code }} today.</p>
+    {% endif %}
+  </div>
+  <div>
+    <h3 class="muted small" style="text-transform:uppercase;letter-spacing:.05em">Assigned to {{ point.code }}</h3>
+    {% if assigned %}
+      <ul style="list-style:none;padding:0;margin:0">
+        {% for e in assigned %}
+          <li style="padding:8px 0;border-bottom:1px solid #f3f4f6">
+            {{ e.user.get_full_name|default:e.user.username }}
+            <span class="muted small">&middot; {{ e.get_employment_status_display }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted small">No employees assigned to this point.</p>
+    {% endif %}
+  </div>
+</div>
+
+<h2 style="margin-top:28px">Stock at a glance</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div>
+    <h3 class="muted small" style="text-transform:uppercase;letter-spacing:.05em">On hand</h3>
+    {% if balances %}
+      <table class="stock-table">
+        <tr><th>Product</th><th>Quantity</th></tr>
+        {% for b in balances %}
+          <tr>
+            <td>{{ b.product.name }}</td>
+            <td>{{ b.quantity|floatformat:3 }} {{ b.product.selling_unit.abbreviation }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+    {% else %}
+      <p class="muted small">No stock recorded at {{ point.code }}.</p>
+    {% endif %}
+  </div>
+  <div>
+    <h3 class="muted small" style="text-transform:uppercase;letter-spacing:.05em">Needs restock</h3>
+    {% if low_stock %}
+      <table class="stock-table">
+        <tr><th>Product</th><th>Have / Min</th></tr>
+        {% for item in low_stock %}
+          <tr>
+            <td>{{ item.product.name }}</td>
+            <td>
+              <span style="color:#b91c1c;font-weight:600">{{ item.have|floatformat:3 }}</span>
+              / {{ item.minimum|floatformat:3 }}
+            </td>
+          </tr>
+        {% endfor %}
+      </table>
+    {% elif active_alerts %}
+      <p class="muted small">No rules tripped, but {{ active_alerts|length }} active alert{{ active_alerts|length|pluralize }} exists.</p>
+    {% else %}
+      <p class="muted small" style="color:#059669">All above minimum levels.</p>
+    {% endif %}
+  </div>
+</div>
+
+<h2 style="margin-top:28px">Recent movements</h2>
+{% if recent_movements %}
+  <table class="stock-table">
+    <tr><th>When</th><th>Product</th><th>Type</th><th>Change</th><th>By</th></tr>
+    {% for m in recent_movements %}
+      <tr>
+        <td class="small muted">{{ m.created_at|date:"Y-m-d H:i" }}</td>
+        <td>{{ m.product.name }}</td>
+        <td><span class="badge">{{ m.get_movement_type_display }}</span></td>
+        <td>{{ m.quantity_delta|floatformat:3 }}</td>
+        <td class="small">{{ m.created_by.username|default:"&mdash;" }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+{% else %}
+  <p class="muted small">No stock movements recorded.</p>
+{% endif %}
+
+<p style="margin-top:24px"><a href="{% url 'stock:dashboard' %}">&larr; Back to stock dashboard</a></p>
+
+{% endblock %}

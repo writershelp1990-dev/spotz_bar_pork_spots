@@ -52,7 +52,6 @@ class ViewTestBase(TestCase):
             user=cls.but_user, operating_point=cls.butchery,
             employment_status=Employee.EmploymentStatus.ACTIVE)
 
-        # A product + a couple of transfers
         cls.kg, _ = UnitOfMeasure.objects.get_or_create(
             abbreviation="kg",
             defaults={"name": "Kilogram", "unit_type": "WEIGHT", "is_active": True})
@@ -77,7 +76,7 @@ class ViewTestBase(TestCase):
             quantity=Decimal("1.000"), unit=self.kg,
             reason="test",
             requested_by=requested_by or self.but_user,
-            status=status or StockTransfer.Status.PENDING,
+            status=status or StockTransfer.Status.REQUESTED,
         )
         return t
 
@@ -140,16 +139,6 @@ class DirectorOnlyViewsTests(ViewTestBase):
         r = self.client.get(reverse("stock:reconciliation"))
         self.assertEqual(r.status_code, 403)
 
-    def test_transfer_approve_403_for_kitchen(self):
-        t = self.make_transfer()
-        r = self.client.post(reverse("stock:transfer_approve", args=[t.pk]))
-        self.assertEqual(r.status_code, 403)
-
-    def test_transfer_complete_403_for_kitchen(self):
-        t = self.make_transfer(status=StockTransfer.Status.APPROVED)
-        r = self.client.post(reverse("stock:transfer_complete", args=[t.pk]))
-        self.assertEqual(r.status_code, 403)
-
     def test_transfer_cancel_403_for_kitchen(self):
         t = self.make_transfer()
         r = self.client.post(reverse("stock:transfer_cancel", args=[t.pk]),
@@ -202,14 +191,11 @@ class TransferScopingTests(ViewTestBase):
         r = self.client.get(reverse("stock:transfer_list"))
         self.assertEqual(r.status_code, 200)
         body = r.content.decode()
-        # Both transfer numbers should be visible to Director
         self.assertIn("T-0001", body)
         self.assertIn("T-0002", body)
 
     def test_kitchen_attendant_sees_only_own_point_transfers(self):
-        # Transfer 1: butchery -> kitchen (touches kitchen)
         self.make_transfer(source=self.butchery, destination=self.kitchen)
-        # Transfer 2: butchery -> choma (does NOT touch kitchen)
         self.make_transfer(source=self.butchery, destination=self.choma)
         self.client.force_login(self.kit_user)
         r = self.client.get(reverse("stock:transfer_list"))
@@ -219,14 +205,12 @@ class TransferScopingTests(ViewTestBase):
         self.assertNotIn("T-0002", body)
 
     def test_detail_403_for_irrelevant_transfer(self):
-        # butchery -> choma, kitchen attendant shouldn't see it
         t = self.make_transfer(source=self.butchery, destination=self.choma)
         self.client.force_login(self.kit_user)
         r = self.client.get(reverse("stock:transfer_detail", args=[t.pk]))
         self.assertEqual(r.status_code, 403)
 
     def test_detail_200_for_own_source_transfer(self):
-        # butchery -> kitchen, kitchen attendant sees it (destination)
         t = self.make_transfer(source=self.butchery, destination=self.kitchen)
         self.client.force_login(self.kit_user)
         r = self.client.get(reverse("stock:transfer_detail", args=[t.pk]))
@@ -245,12 +229,10 @@ class TransferRequestScopingTests(ViewTestBase):
     """Staff can only create a transfer from their own point."""
 
     def test_kitchen_attendant_cannot_create_from_butchery(self):
-        """POST with source_point=BUTCHERY for a kitchen attendant is
-        rejected by the service, and the form re-renders with a message."""
         self.client.force_login(self.kit_user)
         r = self.client.post(reverse("stock:transfer_request"), {
             "product": self.pork.pk,
-            "source_point": self.butchery.pk,      # not the kitchen user's point
+            "source_point": self.butchery.pk,
             "destination_point": self.kitchen.pk,
             "quantity": "1.000",
             "unit": self.kg.pk,
@@ -258,8 +240,6 @@ class TransferRequestScopingTests(ViewTestBase):
             "reason": "should be rejected",
             "reference": "",
         })
-        # The view catches PermissionDenied and re-renders the form; it does
-        # NOT create a StockTransfer.
         self.assertEqual(StockTransfer.objects.count(), 0)
         self.assertEqual(r.status_code, 200)
 
@@ -289,6 +269,131 @@ class TransferRequestScopingTests(ViewTestBase):
             "reason": "director-initiated",
             "reference": "",
         })
-        # Redirect on success
         self.assertEqual(r.status_code, 302)
         self.assertEqual(StockTransfer.objects.count(), 1)
+
+
+class TransferActionEndpointTests(ViewTestBase):
+    """The new sender/recipient POST actions and popup API."""
+
+    def test_transfer_accept_endpoint_flips_to_sent(self):
+        t = self.make_transfer(
+            source=self.butchery, destination=self.kitchen,
+            status=StockTransfer.Status.REQUESTED)
+        self.client.force_login(self.but_user)
+        r = self.client.post(
+            reverse("stock:transfer_accept", args=[t.pk]),
+            {"quantity_sent": "1.000"})
+        self.assertEqual(r.status_code, 302)
+        t.refresh_from_db()
+        self.assertEqual(t.status, StockTransfer.Status.SENT)
+
+    def test_transfer_accept_denied_for_recipient(self):
+        t = self.make_transfer(
+            source=self.butchery, destination=self.kitchen,
+            status=StockTransfer.Status.REQUESTED)
+        self.client.force_login(self.kit_user)
+        r = self.client.post(
+            reverse("stock:transfer_accept", args=[t.pk]),
+            {"quantity_sent": "1.000"})
+        self.assertEqual(r.status_code, 302)
+        t.refresh_from_db()
+        self.assertEqual(t.status, StockTransfer.Status.REQUESTED)
+
+    def test_transfer_acknowledge_endpoint_completes(self):
+        from sales.models import StockBalance
+        StockBalance.objects.create(
+            product=self.pork, operating_point=self.butchery,
+            quantity=Decimal("5.000"))
+        t = self.make_transfer(
+            source=self.butchery, destination=self.kitchen,
+            status=StockTransfer.Status.SENT)
+        t.quantity_sent = Decimal("1.000")
+        t.save(update_fields=["quantity_sent"])
+        self.client.force_login(self.kit_user)
+        r = self.client.post(
+            reverse("stock:transfer_recipient_acknowledge", args=[t.pk]),
+            {"quantity_received": "1.000"})
+        self.assertEqual(r.status_code, 302)
+        t.refresh_from_db()
+        self.assertEqual(t.status, StockTransfer.Status.COMPLETED)
+
+    def test_api_pending_transfers_returns_sender_action(self):
+        self.make_transfer(
+            source=self.butchery, destination=self.kitchen,
+            status=StockTransfer.Status.REQUESTED)
+        self.client.force_login(self.but_user)
+        r = self.client.get(reverse("stock:api_pending_transfers"))
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertEqual(len(data["actions"]), 1)
+        self.assertEqual(data["actions"][0]["kind"], "sender_accept")
+
+    def test_api_pending_transfers_returns_recipient_action(self):
+        self.make_transfer(
+            source=self.butchery, destination=self.kitchen,
+            status=StockTransfer.Status.SENT)
+        self.client.force_login(self.kit_user)
+        r = self.client.get(reverse("stock:api_pending_transfers"))
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertEqual(len(data["actions"]), 1)
+        self.assertEqual(data["actions"][0]["kind"], "recipient_acknowledge")
+
+class PointDetailViewTests(ViewTestBase):
+    """One page per operating point; scoped to staff, open to Director."""
+
+    def test_director_sees_any_point(self):
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("stock:point_detail", args=["BUTCHERY"]))
+        self.assertEqual(r.status_code, 200)
+
+    def test_point_user_sees_own_point(self):
+        self.client.force_login(self.but_user)
+        r = self.client.get(reverse("stock:point_detail", args=["BUTCHERY"]))
+        self.assertEqual(r.status_code, 200)
+
+    def test_point_user_blocked_from_other_point(self):
+        self.client.force_login(self.but_user)
+        r = self.client.get(reverse("stock:point_detail", args=["KITCHEN"]))
+        self.assertEqual(r.status_code, 403)
+
+    def test_anonymous_redirects(self):
+        r = self.client.get(reverse("stock:point_detail", args=["BAR"]))
+        self.assertEqual(r.status_code, 302)
+
+    def test_invalid_point_returns_404(self):
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("stock:point_detail", args=["NOPE"]))
+        self.assertEqual(r.status_code, 404)
+
+    def test_renders_without_business_day(self):
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("stock:point_detail", args=["KITCHEN"]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "READY TO START")
+
+    def test_open_business_day_shows_open_pill(self):
+        from business.business_day_models import BusinessDay
+        from django.utils import timezone
+        BusinessDay.objects.create(
+            business_date=timezone.now().date(),
+            status=BusinessDay.Status.OPEN,
+            actual_opened_at=timezone.now(),
+        )
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("stock:point_detail", args=["KITCHEN"]))
+        self.assertContains(r, "BUSINESS DAY OPEN")
+
+    def test_low_stock_item_is_listed(self):
+        from sales.models import StockAlertRule
+        from decimal import Decimal
+        StockAlertRule.objects.create(
+            product=self.pork, operating_point=self.kitchen,
+            minimum_quantity=Decimal("10.000"), target_quantity=Decimal("20.000"),
+            is_active=True, created_by=self.director,
+        )
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("stock:point_detail", args=["KITCHEN"]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, self.pork.name)

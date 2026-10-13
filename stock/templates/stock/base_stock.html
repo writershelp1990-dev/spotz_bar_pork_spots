@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <div style="max-width:1100px;margin:0 auto;padding:20px">
+  {% block stock_quicknav %}
   <nav class="stock-quicknav" style="margin-bottom:16px;padding:8px 0;border-bottom:1px solid #eee">
-    <a href="{% url 'stock:dashboard' %}">Dashboard</a> ·
+    <a href="{% url 'stock:dashboard' %}">Stock dashboard</a> ·
     <a href="{% url 'stock:transfer_list' %}">Transfers</a> ·
     <a href="{% url 'stock:transfer_request' %}">Request transfer</a> ·
     <a href="{% url 'stock:batch_list' %}">Production</a> ·
@@ -12,6 +13,7 @@
       · <a href="{% url 'stock:reconciliation' %}">Reconciliation</a>
     {% endif %}
   </nav>
+  {% endblock %}
 
   {% if messages %}
     {% for m in messages %}<p style="padding:8px 12px;border-radius:6px;background:#eef;margin:6px 0">{{ m }}</p>{% endfor %}

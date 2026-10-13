@@ -10,8 +10,6 @@ urlpatterns = [
     path("transfers/", views.transfer_list, name="transfer_list"),
     path("transfers/new/", views.transfer_request, name="transfer_request"),
     path("transfers/<int:pk>/", views.transfer_detail, name="transfer_detail"),
-    path("transfers/<int:pk>/approve/", views.transfer_approve, name="transfer_approve"),
-    path("transfers/<int:pk>/complete/", views.transfer_complete, name="transfer_complete"),
     path("transfers/<int:pk>/cancel/", views.transfer_cancel, name="transfer_cancel"),
 
     # Recipes
@@ -27,4 +25,10 @@ urlpatterns = [
 
     # Reconciliation
     path("reconciliation/", views.reconciliation, name="reconciliation"),
+    path("transfers/<int:pk>/accept/", views.transfer_accept, name="transfer_accept"),
+    path("transfers/<int:pk>/sender-reject/", views.transfer_sender_reject, name="transfer_sender_reject"),
+    path("transfers/<int:pk>/acknowledge/", views.transfer_recipient_acknowledge, name="transfer_recipient_acknowledge"),
+    path("transfers/<int:pk>/recipient-reject/", views.transfer_recipient_reject, name="transfer_recipient_reject"),
+    path("api/pending-transfers/", views.api_pending_transfers, name="api_pending_transfers"),
+    path("points/<str:code>/", views.point_detail, name="point_detail"),
 ]

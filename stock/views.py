@@ -6,7 +6,7 @@ from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from accounts.models import OperatingPoint
+from accounts.models import OperatingPoint, Employee
 from catalog.models import Product
 
 from .forms import (
@@ -33,12 +33,12 @@ def dashboard(request):
     point = stock_point_for(user)
 
     if is_dir:
-        pending_qs = StockTransfer.objects.filter(status=StockTransfer.Status.PENDING)
-        approved_qs = StockTransfer.objects.filter(status=StockTransfer.Status.APPROVED)
+        pending_qs = StockTransfer.objects.filter(status=StockTransfer.Status.REQUESTED)
+        approved_qs = StockTransfer.objects.filter(status=StockTransfer.Status.SENT)
         batch_qs = ProductionBatch.objects.all()
     else:
         pending_qs = StockTransfer.objects.filter(
-            status=StockTransfer.Status.PENDING,
+            status=StockTransfer.Status.REQUESTED,
             source_point=point,
         )
         approved_qs = StockTransfer.objects.none()
@@ -76,7 +76,7 @@ def transfer_list(request):
         ).distinct()
     qs = qs.select_related(
         "product", "source_point", "destination_point",
-        "requested_by", "approved_by",
+        "requested_by", "sent_by", "received_by",
     ).order_by("-requested_at")
     return render(request, "stock/transfer_list.html", {"transfers": qs})
 
@@ -114,7 +114,7 @@ def transfer_detail(request, pk):
     t = get_object_or_404(
         StockTransfer.objects.select_related(
             "product", "source_point", "destination_point",
-            "requested_by", "approved_by", "completed_by", "unit",
+            "requested_by", "sent_by", "received_by", "unit",
         ),
         pk=pk,
     )
@@ -132,32 +132,6 @@ def transfer_detail(request, pk):
     })
 
 
-@login_required
-@require_director
-def transfer_approve(request, pk):
-    t = get_object_or_404(StockTransfer, pk=pk)
-    if request.method != "POST":
-        raise PermissionDenied("POST required.")
-    try:
-        svc.approve_transfer(transfer=t, user=request.user)
-        messages.success(request, f"Transfer {t.transfer_number} approved.")
-    except (PermissionDenied, ValidationError) as e:
-        messages.error(request, str(e))
-    return redirect("stock:transfer_detail", pk=t.pk)
-
-
-@login_required
-@require_director
-def transfer_complete(request, pk):
-    t = get_object_or_404(StockTransfer, pk=pk)
-    if request.method != "POST":
-        raise PermissionDenied("POST required.")
-    try:
-        svc.complete_transfer(transfer=t, user=request.user)
-        messages.success(request, f"Transfer {t.transfer_number} completed.")
-    except (PermissionDenied, ValidationError) as e:
-        messages.error(request, str(e))
-    return redirect("stock:transfer_detail", pk=t.pk)
 
 
 @login_required
@@ -367,4 +341,315 @@ def reconciliation(request):
     return render(request, "stock/reconciliation.html", {
         "target_date": target_date,
         "rows": rows,
+    })
+
+# =========================================================================
+# Sender / recipient actions (Stage: recipient acknowledgement)
+# =========================================================================
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from django.utils import timezone as _tz
+
+
+@login_required
+@require_active_staff
+def transfer_accept(request, pk):
+    """Sender confirms the shipment and enters the quantity sent."""
+    if request.method != "POST":
+        raise PermissionDenied("POST required.")
+    transfer = get_object_or_404(StockTransfer, pk=pk)
+    qty = request.POST.get("quantity_sent", "").strip()
+    if not qty:
+        messages.error(request, "Quantity sent is required.")
+        return redirect("stock:transfer_detail", pk=transfer.pk)
+    try:
+        svc.sender_accept(transfer=transfer, user=request.user, quantity_sent=qty)
+        messages.success(request, f"Transfer {transfer.transfer_number} confirmed as sent.")
+    except (PermissionDenied, ValidationError) as e:
+        messages.error(request, str(e))
+    return redirect("stock:transfer_detail", pk=transfer.pk)
+
+
+@login_required
+@require_active_staff
+def transfer_sender_reject(request, pk):
+    if request.method != "POST":
+        raise PermissionDenied("POST required.")
+    transfer = get_object_or_404(StockTransfer, pk=pk)
+    reason = request.POST.get("reason", "").strip()
+    try:
+        svc.sender_reject(transfer=transfer, user=request.user, reason=reason)
+        messages.success(request, f"Transfer {transfer.transfer_number} rejected.")
+    except (PermissionDenied, ValidationError) as e:
+        messages.error(request, str(e))
+    return redirect("stock:transfer_detail", pk=transfer.pk)
+
+
+@login_required
+@require_active_staff
+def transfer_recipient_acknowledge(request, pk):
+    if request.method != "POST":
+        raise PermissionDenied("POST required.")
+    transfer = get_object_or_404(StockTransfer, pk=pk)
+    qty = request.POST.get("quantity_received", "").strip()
+    condition = request.POST.get("condition", "").strip()
+    notes = request.POST.get("notes", "").strip()
+    variance_reason = request.POST.get("variance_reason", "").strip()
+    if not qty:
+        messages.error(request, "Quantity received is required.")
+        return redirect("stock:transfer_detail", pk=transfer.pk)
+    try:
+        svc.recipient_acknowledge(
+            transfer=transfer, user=request.user,
+            quantity_received=qty, condition=condition,
+            notes=notes, variance_reason=variance_reason,
+        )
+        messages.success(request, f"Transfer {transfer.transfer_number} completed.")
+    except (PermissionDenied, ValidationError) as e:
+        messages.error(request, str(e))
+    return redirect("stock:transfer_detail", pk=transfer.pk)
+
+
+@login_required
+@require_active_staff
+def transfer_recipient_reject(request, pk):
+    if request.method != "POST":
+        raise PermissionDenied("POST required.")
+    transfer = get_object_or_404(StockTransfer, pk=pk)
+    reason = request.POST.get("reason", "").strip()
+    try:
+        svc.recipient_reject(transfer=transfer, user=request.user, reason=reason)
+        messages.success(request, f"Transfer {transfer.transfer_number} rejected.")
+    except (PermissionDenied, ValidationError) as e:
+        messages.error(request, str(e))
+    return redirect("stock:transfer_detail", pk=transfer.pk)
+
+
+# =========================================================================
+# Popup API — pending transfer actions for the logged-in user
+# =========================================================================
+@login_required
+@require_active_staff
+def api_pending_transfers(request):
+    """Return transfers where the current user must act.
+
+    Sender: REQUESTED transfers from a source point the user can act on.
+    Recipient: SENT transfers to a destination point the user can act on.
+    """
+    user = request.user
+    out = []
+
+    if is_director(user):
+        # Directors see everything as informational (no required action).
+        pending_requested = StockTransfer.objects.filter(
+            status=StockTransfer.Status.REQUESTED)
+        pending_sent = StockTransfer.objects.filter(
+            status=StockTransfer.Status.SENT)
+    else:
+        point = stock_point_for(user)
+        if point is None:
+            return JsonResponse({"actions": []})
+        pending_requested = StockTransfer.objects.filter(
+            status=StockTransfer.Status.REQUESTED,
+            source_point=point,
+        )
+        pending_sent = StockTransfer.objects.filter(
+            status=StockTransfer.Status.SENT,
+            destination_point=point,
+        )
+
+    for t in pending_requested.select_related(
+            "product", "source_point", "destination_point", "unit"):
+        out.append({
+            "id": f"req-{t.pk}",
+            "transfer_id": t.pk,
+            "kind": "sender_accept",
+            "title": f"New transfer request: {t.product.name}",
+            "from_area": t.source_point.code,
+            "to_area": t.destination_point.code,
+            "quantity_requested": str(t.quantity),
+            "unit": t.unit.abbreviation,
+            "requested_by": t.requested_by.username if t.requested_by_id else "",
+            "created_at": t.requested_at.isoformat(),
+            "url": f"/stock/transfers/{t.pk}/",
+            "accept_url": f"/stock/transfers/{t.pk}/accept/",
+            "reject_url": f"/stock/transfers/{t.pk}/sender-reject/",
+        })
+
+    for t in pending_sent.select_related(
+            "product", "source_point", "destination_point", "unit", "sent_by"):
+        out.append({
+            "id": f"sent-{t.pk}",
+            "transfer_id": t.pk,
+            "kind": "recipient_acknowledge",
+            "title": f"Awaiting receipt: {t.product.name}",
+            "from_area": t.source_point.code,
+            "to_area": t.destination_point.code,
+            "quantity_sent": str(t.quantity_sent),
+            "unit": t.unit.abbreviation,
+            "sent_by": t.sent_by.username if t.sent_by_id else "",
+            "deadline": t.acknowledgement_deadline.isoformat() if t.acknowledgement_deadline else "",
+            "url": f"/stock/transfers/{t.pk}/",
+            "accept_url": f"/stock/transfers/{t.pk}/acknowledge/",
+            "reject_url": f"/stock/transfers/{t.pk}/recipient-reject/",
+        })
+
+    return JsonResponse({"actions": out})
+
+# ---------------------------------------------------------------------------
+# Point operations dashboard — one page per operating point
+# ---------------------------------------------------------------------------
+from datetime import timedelta as _pd_td
+from django.utils import timezone as _pd_tz
+from django.db.models import Sum as _pd_Sum, Count as _pd_Count
+from business.business_day_models import (
+    BusinessDay as _pd_BusinessDay,
+    StaffDeployment as _pd_StaffDeployment,
+)
+from sales.models import (
+    StockBalance as _pd_StockBalance,
+    StockLedger as _pd_StockLedger,
+    StockAlert as _pd_StockAlert,
+    StockAlertRule as _pd_StockAlertRule,
+    Sale as _pd_Sale,
+    SaleItem as _pd_SaleItem,
+)
+from accounts.models import OperatingPoint as _pd_OperatingPoint
+
+
+@login_required
+@require_active_staff
+def point_detail(request, code):
+    """Read-only operational dashboard for one operating point."""
+    point = get_object_or_404(_pd_OperatingPoint, code__iexact=code)
+    user = request.user
+
+    if not is_director(user):
+        own = stock_point_for(user)
+        if own is None or own.pk != point.pk:
+            raise PermissionDenied("You can only view your own operating point.")
+
+    open_day = _pd_BusinessDay.objects.filter(
+        status=_pd_BusinessDay.Status.OPEN).first()
+    if open_day:
+        day_state = "OPEN"
+        day_date = open_day.business_date
+        day_timestamp = open_day.actual_opened_at
+    else:
+        latest = _pd_BusinessDay.objects.order_by("-business_date").first()
+        if latest:
+            day_state = "CLOSED"
+            day_date = latest.business_date
+            day_timestamp = latest.actual_closed_at
+        else:
+            day_state = "NONE"
+            day_date = None
+            day_timestamp = None
+
+    deployed = []
+    if open_day:
+        deployed = list(
+            _pd_StaffDeployment.objects
+            .filter(
+                business_day=open_day,
+                operating_point=point,
+                status=_pd_StaffDeployment.Status.ACTIVE,
+            )
+            .select_related("employee__user")
+            .order_by("start_time", "employee__user__first_name")
+        )
+
+    assigned = list(
+        Employee.objects
+        .filter(operating_point=point, is_active=True)
+        .select_related("user")
+        .order_by("user__first_name", "user__username")[:20]
+    )
+
+    sales_qs = _pd_Sale.objects.filter(operating_point=point)
+    if open_day:
+        sales_qs = sales_qs.filter(business_day=open_day)
+    else:
+        sales_qs = sales_qs.filter(
+            sold_at__gte=_pd_tz.now() - _pd_td(hours=24))
+    sales_qs = sales_qs.filter(payment_status=_pd_Sale.PaymentStatus.PAID)
+
+    totals = sales_qs.aggregate(
+        count=_pd_Count("id"),
+        total=_pd_Sum("total"),
+    )
+    sales_count = totals["count"] or 0
+    sales_total = totals["total"] or 0
+
+    payment_mix = list(
+        sales_qs.values("payment_method")
+        .annotate(count=_pd_Count("id"), total=_pd_Sum("total"))
+        .order_by("-total")
+    )
+
+    top_sellers = list(
+        _pd_SaleItem.objects
+        .filter(sale__in=sales_qs)
+        .values("product_name_snapshot", "unit_name_snapshot")
+        .annotate(qty=_pd_Sum("quantity"), revenue=_pd_Sum("line_total"))
+        .order_by("-qty")[:5]
+    )
+
+    balances = list(
+        _pd_StockBalance.objects
+        .filter(operating_point=point, quantity__gt=0)
+        .select_related("product")
+        .order_by("-quantity")[:8]
+    )
+
+    rules = (
+        _pd_StockAlertRule.objects
+        .filter(operating_point=point, is_active=True)
+        .select_related("product")
+    )
+    balance_map = {
+        b.product_id: b.quantity
+        for b in _pd_StockBalance.objects.filter(operating_point=point)
+    }
+    low_stock = []
+    for rule in rules:
+        have = balance_map.get(rule.product_id, 0)
+        if have < rule.minimum_quantity:
+            low_stock.append({
+                "product": rule.product,
+                "have": have,
+                "minimum": rule.minimum_quantity,
+                "target": rule.target_quantity,
+            })
+
+    active_alerts = list(
+        _pd_StockAlert.objects
+        .filter(operating_point=point, status=_pd_StockAlert.Status.ACTIVE)
+        .select_related("product")
+        .order_by("-triggered_at")[:5]
+    )
+
+    recent_movements = list(
+        _pd_StockLedger.objects
+        .filter(operating_point=point)
+        .select_related("product", "created_by")
+        .order_by("-created_at")[:8]
+    )
+
+    return render(request, "stock/point_detail.html", {
+        "point": point,
+        "is_dir": is_director(user),
+        "day_state": day_state,
+        "day_date": day_date,
+        "day_timestamp": day_timestamp,
+        "deployed": deployed,
+        "assigned": assigned,
+        "sales_count": sales_count,
+        "sales_total": sales_total,
+        "payment_mix": payment_mix,
+        "top_sellers": top_sellers,
+        "balances": balances,
+        "low_stock": low_stock,
+        "active_alerts": active_alerts,
+        "recent_movements": recent_movements,
     })

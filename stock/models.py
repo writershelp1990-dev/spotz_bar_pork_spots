@@ -31,9 +31,13 @@ class StockTransfer(models.Model):
         CORRECTION = "CORRECTION", "Correction"       # any -> any, approved by Director
 
     class Status(models.TextChoices):
-        PENDING = "PENDING", "Pending approval"
-        APPROVED = "APPROVED", "Approved — ready to complete"
+        REQUESTED = "REQUESTED", "Requested — awaiting sender"
+        SENT = "SENT", "Sent — awaiting recipient acknowledgement"
+        RECEIVED = "RECEIVED", "Received — completing"
         COMPLETED = "COMPLETED", "Completed"
+        REJECTED_BY_SENDER = "REJECTED_BY_SENDER", "Rejected by sender"
+        REJECTED_BY_RECIPIENT = "REJECTED_BY_RECIPIENT", "Rejected by recipient"
+        EXPIRED = "EXPIRED", "Expired — no acknowledgement"
         CANCELLED = "CANCELLED", "Cancelled"
 
     transfer_number = models.CharField(max_length=40, unique=True)
@@ -70,22 +74,50 @@ class StockTransfer(models.Model):
     )
     requested_at = models.DateTimeField(auto_now_add=True)
 
-    approved_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
-        related_name="stock_transfers_approved", null=True, blank=True,
-    )
-    approved_at = models.DateTimeField(null=True, blank=True)
 
-    completed_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
-        related_name="stock_transfers_completed", null=True, blank=True,
-    )
     completed_at = models.DateTimeField(null=True, blank=True)
 
     status = models.CharField(
-        max_length=12, choices=Status.choices, default=Status.PENDING,
+        max_length=21, choices=Status.choices, default=Status.REQUESTED,
     )
 
+    # --- Sender confirmation (replaces Director approval) ---
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="stock_transfers_sent", null=True, blank=True,
+    )
+    sent_at = models.DateTimeField(null=True, blank=True)
+    quantity_sent = models.DecimalField(
+        max_digits=14, decimal_places=3, null=True, blank=True,
+    )
+
+    # --- Recipient acknowledgement ---
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="stock_transfers_received", null=True, blank=True,
+    )
+    received_at = models.DateTimeField(null=True, blank=True)
+    quantity_received = models.DecimalField(
+        max_digits=14, decimal_places=3, null=True, blank=True,
+    )
+
+    # --- Variance ---
+    variance_quantity = models.DecimalField(
+        max_digits=14, decimal_places=3, null=True, blank=True,
+    )
+    variance_reason = models.TextField(blank=True)
+
+    # --- How the transfer completed (normal vs auto) ---
+    completion_method = models.CharField(
+        max_length=20, blank=True,
+        choices=[
+            ("NORMAL", "Recipient acknowledged"),
+            ("AUTO", "Auto-completed without acknowledgement"),
+        ],
+    )
+
+    # --- Deadline for recipient acknowledgement (30 min from sent_at) ---
+    acknowledgement_deadline = models.DateTimeField(null=True, blank=True, db_index=True)
     class Meta:
         ordering = ["-requested_at", "-id"]
         indexes = [
@@ -105,12 +137,27 @@ class StockTransfer(models.Model):
         )
 
     @property
-    def is_pending(self):
-        return self.status == self.Status.PENDING
+    def is_requested(self):
+        return self.status == self.Status.REQUESTED
+
+    @property
+    def is_sent(self):
+        return self.status == self.Status.SENT
 
     @property
     def is_completed(self):
         return self.status == self.Status.COMPLETED
+
+    @property
+    def is_terminal(self):
+        return self.status in {
+            self.Status.COMPLETED,
+            self.Status.REJECTED_BY_SENDER,
+            self.Status.REJECTED_BY_RECIPIENT,
+            self.Status.EXPIRED,
+            self.Status.CANCELLED,
+        }
+
 
 
 # ===========================================================================

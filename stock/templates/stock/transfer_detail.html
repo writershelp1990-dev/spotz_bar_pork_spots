@@ -3,38 +3,78 @@
 <h1>Transfer {{ transfer.transfer_number }}</h1>
 <p class="muted"><span class="badge badge-{{ transfer.status }}">{{ transfer.get_status_display }}</span></p>
 
+{% if messages %}
+  {% for m in messages %}<p class="msg">{{ m }}</p>{% endfor %}
+{% endif %}
+
 <table class="stock-table">
   <tr><th>Product</th><td>{{ transfer.product.name }} ({{ transfer.product.code }})</td></tr>
   <tr><th>From</th><td>{{ transfer.source_point.code }} — {{ transfer.source_point.name }}</td></tr>
   <tr><th>To</th><td>{{ transfer.destination_point.code }} — {{ transfer.destination_point.name }}</td></tr>
-  <tr><th>Quantity</th><td>{{ transfer.quantity }} {{ transfer.unit.abbreviation }}</td></tr>
-  <tr><th>Type</th><td>{{ transfer.get_transfer_type_display }}</td></tr>
-  <tr><th>Reason</th><td>{{ transfer.reason|default:"—" }}</td></tr>
-  <tr><th>Reference</th><td>{{ transfer.reference|default:"—" }}</td></tr>
+  <tr><th>Requested</th><td>{{ transfer.quantity }} {{ transfer.unit.abbreviation }}</td></tr>
+  {% if transfer.quantity_sent %}<tr><th>Sent</th><td>{{ transfer.quantity_sent }} {{ transfer.unit.abbreviation }} by {{ transfer.sent_by.username }} at {{ transfer.sent_at }}</td></tr>{% endif %}
+  {% if transfer.quantity_received %}<tr><th>Received</th><td>{{ transfer.quantity_received }} {{ transfer.unit.abbreviation }} by {{ transfer.received_by.username }} at {{ transfer.received_at }}</td></tr>{% endif %}
+  {% if transfer.variance_quantity %}<tr><th>Variance</th><td>{{ transfer.variance_quantity }} {{ transfer.unit.abbreviation }}{% if transfer.variance_reason %} — {{ transfer.variance_reason }}{% endif %}</td></tr>{% endif %}
+  {% if transfer.acknowledgement_deadline %}<tr><th>Ack. deadline</th><td>{{ transfer.acknowledgement_deadline }}</td></tr>{% endif %}
   <tr><th>Requested by</th><td>{{ transfer.requested_by.username }} at {{ transfer.requested_at }}</td></tr>
-  {% if transfer.approved_by %}<tr><th>Approved by</th><td>{{ transfer.approved_by.username }} at {{ transfer.approved_at }}</td></tr>{% endif %}
-  {% if transfer.completed_by %}<tr><th>Completed by</th><td>{{ transfer.completed_by.username }} at {{ transfer.completed_at }}</td></tr>{% endif %}
+  {% if transfer.completion_method %}<tr><th>Completed via</th><td>{{ transfer.get_completion_method_display }}</td></tr>{% endif %}
 </table>
 
+{# ---------- Sender action (REQUESTED) ---------- #}
+{% if transfer.status == "REQUESTED" %}
+  <h2>Sender decision</h2>
+  <form method="post" action="{% url 'stock:transfer_accept' transfer.pk %}" style="display:inline-block; margin-right:12px">
+    {% csrf_token %}
+    <label>Quantity sent<br>
+      <input type="number" step="0.001" name="quantity_sent" value="{{ transfer.quantity }}" required>
+    </label>
+    <button type="submit">Accept &amp; mark sent</button>
+  </form>
+  <form method="post" action="{% url 'stock:transfer_sender_reject' transfer.pk %}" style="display:inline-block">
+    {% csrf_token %}
+    <input type="text" name="reason" placeholder="Reason (required)" required>
+    <button type="submit">Reject</button>
+  </form>
+{% endif %}
+
+{# ---------- Recipient action (SENT) ---------- #}
+{% if transfer.status == "SENT" %}
+  <h2>Recipient acknowledgement</h2>
+  <p class="muted">
+    Sender confirmed {{ transfer.quantity_sent }} {{ transfer.unit.abbreviation }}. Enter the
+    quantity you actually received. Small variances (≤ 100 g and ≤ 2%) are auto-accepted;
+    larger variances require a reason.
+  </p>
+  <form method="post" action="{% url 'stock:transfer_recipient_acknowledge' transfer.pk %}">
+    {% csrf_token %}
+    <p><label>Quantity received<br>
+      <input type="number" step="0.001" name="quantity_received" value="{{ transfer.quantity_sent }}" required>
+    </label></p>
+    <p><label>Variance reason (required if variance > 100 g or > 2%)<br>
+      <input type="text" name="variance_reason" placeholder="e.g. 50 g stuck to the bag">
+    </label></p>
+    <p><label>Notes<br>
+      <textarea name="notes" rows="2"></textarea>
+    </label></p>
+    <button type="submit">Acknowledge receipt &amp; complete</button>
+  </form>
+  <form method="post" action="{% url 'stock:transfer_recipient_reject' transfer.pk %}" style="margin-top:12px">
+    {% csrf_token %}
+    <input type="text" name="reason" placeholder="Reason (required)" required>
+    <button type="submit">Reject receipt</button>
+  </form>
+{% endif %}
+
 {% if is_dir %}
-  {% if transfer.status == "PENDING" %}
-    <form method="post" action="{% url 'stock:transfer_approve' transfer.pk %}" style="display:inline">
-      {% csrf_token %}<button type="submit">Approve</button>
-    </form>
-    <form method="post" action="{% url 'stock:transfer_cancel' transfer.pk %}" style="display:inline">
+  {% if transfer.status == "REQUESTED" or transfer.status == "SENT" %}
+    <h2>Director override</h2>
+    <form method="post" action="{% url 'stock:transfer_cancel' transfer.pk %}">
       {% csrf_token %}
       <input type="text" name="reason" placeholder="Cancellation reason" required>
-      <button type="submit">Cancel</button>
-    </form>
-  {% elif transfer.status == "APPROVED" %}
-    <form method="post" action="{% url 'stock:transfer_complete' transfer.pk %}" style="display:inline">
-      {% csrf_token %}<button type="submit">Complete transfer</button>
-    </form>
-    <form method="post" action="{% url 'stock:transfer_cancel' transfer.pk %}" style="display:inline">
-      {% csrf_token %}
-      <input type="text" name="reason" placeholder="Cancellation reason" required>
-      <button type="submit">Cancel</button>
+      <button type="submit">Cancel transfer</button>
     </form>
   {% endif %}
 {% endif %}
+
+<p style="margin-top:16px"><a href="{% url 'stock:transfer_list' %}">Back to transfers</a></p>
 {% endblock %}

@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Dashboard | SPOTZ BAR & PORK SPOTS{% endblock %}
-{% block page_heading %}Dashboard{% endblock %}
+{% block title %}Dashboard | SPOTZ BAR & PORK SPOTS
+{% endblock %}
+{% block page_heading %}Dashboard
+{% endblock %}
 
 {% block content %}
 <div class="spotz-dashboard">
@@ -33,6 +35,7 @@
     </div>
 
     <section class="sd-operations">
+        <a class="sd-operation-link" href="{% url 'stock:point_detail' 'BAR' %}">
         <article class="sd-operation sd-bar">
             <div class="sd-op-top"><span class="sd-op-icon">B</span><span class="sd-op-index">01 / SALES</span></div>
             <span class="sd-op-label">BAR</span>
@@ -41,7 +44,9 @@
             <div class="sd-op-line"></div>
             <span class="sd-op-foot">BAR OPERATIONS <span>✦</span></span>
         </article>
+        </a>
 
+        <a class="sd-operation-link" href="{% url 'stock:point_detail' 'BUTCHERY' %}">
         <article class="sd-operation sd-butchery">
             <div class="sd-op-top"><span class="sd-op-icon">P</span><span class="sd-op-index">02 / STOCK</span></div>
             <span class="sd-op-label">BUTCHERY</span>
@@ -50,7 +55,9 @@
             <div class="sd-op-line"></div>
             <span class="sd-op-foot">STOCK CONTROL <span>✦</span></span>
         </article>
+        </a>
 
+        <a class="sd-operation-link" href="{% url 'stock:point_detail' 'CHOMA' %}">
         <article class="sd-operation sd-choma">
             <div class="sd-op-top"><span class="sd-op-icon">C</span><span class="sd-op-index">03 / PORTIONS</span></div>
             <span class="sd-op-label">CHOMA</span>
@@ -59,7 +66,9 @@
             <div class="sd-op-line"></div>
             <span class="sd-op-foot">CHOMA OPERATIONS <span>✦</span></span>
         </article>
+        </a>
 
+        <a class="sd-operation-link" href="{% url 'stock:point_detail' 'KITCHEN' %}">
         <article class="sd-operation sd-kitchen">
             <div class="sd-op-top"><span class="sd-op-icon">K</span><span class="sd-op-index">04 / FOOD</span></div>
             <span class="sd-op-label">KITCHEN</span>
@@ -68,6 +77,7 @@
             <div class="sd-op-line"></div>
             <span class="sd-op-foot">KITCHEN OPERATIONS <span>✦</span></span>
         </article>
+        </a>
     </section>
 
     {% if dashboard_business_day_available and user.is_director %}
@@ -119,4 +129,22 @@
 
     <div class="sd-footer-note"><span>SPOTZ</span> CONTROL YOUR OPERATIONS. PROTECT YOUR PROFIT.</div>
 </div>
+
+<style>
+.sd-operation-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border-radius: inherit;
+}
+.sd-operation-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+.sd-operation-link:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 3px;
+}
+</style>
 {% endblock %}

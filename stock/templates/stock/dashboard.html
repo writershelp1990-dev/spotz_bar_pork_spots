@@ -7,11 +7,11 @@
 
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0">
   <a href="{% url 'stock:transfer_list' %}" style="padding:14px;background:#f9fafb;border-radius:8px;text-decoration:none;color:inherit">
-    <strong>{{ pending_count }}</strong><br><span class="muted">Pending transfers</span>
+    <strong>{{ pending_count }}</strong><br><span class="muted">Awaiting sender</span>
   </a>
   {% if is_dir %}
   <a href="{% url 'stock:transfer_list' %}" style="padding:14px;background:#dbeafe;border-radius:8px;text-decoration:none;color:inherit">
-    <strong>{{ approved_count }}</strong><br><span class="muted">Approved — ready to complete</span>
+    <strong>{{ approved_count }}</strong><br><span class="muted">Awaiting recipient</span>
   </a>
   {% endif %}
   <a href="{% url 'stock:batch_list' %}" style="padding:14px;background:#f9fafb;border-radius:8px;text-decoration:none;color:inherit">

@@ -208,3 +208,12 @@ receiving_stageD_*/
 suppliers_ui_*/
 suppliers_ui_fix_*/
 business_urls_*/
+
+# Local scratch + backups
+_write_tests.py
+drop_legacy_*/
+fix_status_*/
+transfer_ack_*/
+cleanup_*/
+.bak_*
+*.bak_*
