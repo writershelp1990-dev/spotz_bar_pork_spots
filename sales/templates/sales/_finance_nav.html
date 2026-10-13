@@ -1,0 +1,6 @@
+{# Small nav strip shown on finance pages #}
+<div class="finance-nav" style="margin-bottom:16px;padding:8px 0;border-bottom:1px solid #eee">
+  <a href="{% url 'sales:invoice_list' %}">Invoices</a> ·
+  <a href="{% url 'sales:outstanding_payables' %}">Outstanding payables</a> ·
+  <a href="{% url 'sales:payments_made' %}">Payments made</a>
+</div>

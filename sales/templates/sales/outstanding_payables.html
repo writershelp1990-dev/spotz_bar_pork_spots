@@ -1,0 +1,40 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+
+<h1>Outstanding Payables</h1>
+<p class="muted">Every supplier invoice with a positive balance due.</p>
+
+<p><strong>Total outstanding: {{ total_due }}</strong></p>
+
+<table class="report-table">
+  <thead>
+    <tr>
+      <th>Invoice</th><th>Supplier</th><th>Date</th>
+      <th>Total</th><th>Paid</th><th>Balance due</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for inv in invoices %}
+    <tr>
+      <td><a href="{% url 'sales:invoice_detail' inv.pk %}">{{ inv.internal_reference }}</a></td>
+      <td>{{ inv.supplier.name }}</td>
+      <td>{{ inv.invoice_date|default:"—" }}</td>
+      <td>{{ inv.computed_total_amount }}</td>
+      <td>{{ inv.amount_paid }}</td>
+      <td><strong>{{ inv.balance_due }}</strong></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">Nothing outstanding.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<p style="margin-top:16px"><a href="{% url 'sales:invoice_list' %}">All invoices</a></p>
+
+<style>
+.report-table { width:100%; border-collapse:collapse; margin:12px 0; }
+.report-table th, .report-table td { padding:6px 8px; border-bottom:1px solid #e5e7eb; text-align:left; }
+.muted { color:#6b7280; }
+</style>
+
+{% endblock %}

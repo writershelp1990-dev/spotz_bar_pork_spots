@@ -1,0 +1,46 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+
+<h1>Payments Made</h1>
+<p class="muted">Chronological list of payments recorded against supplier invoices.</p>
+
+<form method="get" style="margin-bottom:12px">
+  <label>From: <input type="date" name="from" value="{{ date_from }}"></label>
+  <label>To: <input type="date" name="to" value="{{ date_to }}"></label>
+  <button type="submit">Filter</button>
+  <a href="{% url 'sales:payments_made' %}">Clear</a>
+</form>
+
+<p><strong>Total in view: {{ total_paid }}</strong></p>
+
+<table class="report-table">
+  <thead>
+    <tr>
+      <th>Date</th><th>Supplier</th><th>Invoice</th>
+      <th>Amount</th><th>Method</th><th>Reference</th><th>Recorded by</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for p in payments %}
+    <tr>
+      <td>{{ p.paid_at }}</td>
+      <td>{{ p.invoice.supplier.name }}</td>
+      <td><a href="{% url 'sales:invoice_detail' p.invoice.pk %}">{{ p.invoice.internal_reference }}</a></td>
+      <td>{{ p.amount }}</td>
+      <td>{{ p.get_method_display }}</td>
+      <td>{{ p.reference|default:"—" }}</td>
+      <td>{{ p.paid_by.username }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No payments in this range.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<style>
+.report-table { width:100%; border-collapse:collapse; margin:12px 0; }
+.report-table th, .report-table td { padding:6px 8px; border-bottom:1px solid #e5e7eb; text-align:left; font-size:0.92em; }
+.muted { color:#6b7280; }
+</style>
+
+{% endblock %}

@@ -39,4 +39,10 @@ urlpatterns = [
     path("stock/receipts/<int:pk>/", views.receipt_detail, name="receipt_detail"),
     path("stock/receipts/<int:pk>/verify/", views.receipt_verify, name="receipt_verify"),
     path("stock/receipts/<int:pk>/reject/", views.receipt_reject, name="receipt_reject"),
+    path("invoices/", views.invoice_list, name="invoice_list"),
+    path("invoices/<int:pk>/", views.invoice_detail, name="invoice_detail"),
+    path("invoices/<int:pk>/payment/", views.invoice_record_payment, name="invoice_record_payment"),
+    path("reports/outstanding-payables/", views.outstanding_payables, name="outstanding_payables"),
+    path("reports/payments-made/", views.payments_made, name="payments_made"),
+    path("reports/pnl/", views.pnl_report, name="pnl_report"),
 ]

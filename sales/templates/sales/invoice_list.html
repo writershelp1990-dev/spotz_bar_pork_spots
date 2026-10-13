@@ -1,0 +1,63 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+
+<h1>Supplier Invoices</h1>
+<p class="muted">Director-only. All invoices with payment status.</p>
+
+<form method="get" style="margin-bottom:12px">
+  <label>Status:
+    <select name="status">
+      <option value="">All</option>
+      {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if val == current_status %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Supplier:
+    <select name="supplier">
+      <option value="">All</option>
+      {% for s in suppliers %}
+        <option value="{{ s.pk }}" {% if s.pk|stringformat:"s" == current_supplier %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit">Filter</button>
+</form>
+
+<table class="inv-table">
+  <thead>
+    <tr>
+      <th>Reference</th><th>Invoice #</th><th>Supplier</th>
+      <th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for inv in invoices %}
+    <tr>
+      <td><a href="{% url 'sales:invoice_detail' inv.pk %}">{{ inv.internal_reference }}</a></td>
+      <td>{{ inv.invoice_number|default:"—" }}</td>
+      <td>{{ inv.supplier.name }}</td>
+      <td>{{ inv.invoice_date|default:"—" }}</td>
+      <td>{{ inv.computed_total_amount }}</td>
+      <td>{{ inv.amount_paid }}</td>
+      <td>{{ inv.balance_due }}</td>
+      <td>{{ inv.get_payment_status_display }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="8" class="muted">No invoices yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<p style="margin-top:16px">
+  <a href="{% url 'sales:outstanding_payables' %}">Outstanding payables</a> ·
+  <a href="{% url 'sales:payments_made' %}">Payments made</a>
+</p>
+
+<style>
+.inv-table { width:100%; border-collapse:collapse; margin:12px 0; }
+.inv-table th, .inv-table td { padding:6px 8px; border-bottom:1px solid #e5e7eb; text-align:left; font-size:0.92em; }
+.muted { color:#6b7280; }
+</style>
+
+{% endblock %}

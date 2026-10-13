@@ -289,3 +289,28 @@ class CheckoutForm(forms.Form):
                 self.add_error(None, 'Invalid batch sale selection.')
                 return
         cleaned['batch_sale_ids'] = batch_ids
+
+class InvoicePaymentForm(forms.Form):
+    """Director-only: record a payment against a supplier invoice."""
+
+    amount = forms.DecimalField(
+        min_value=0.01, max_digits=14, decimal_places=2,
+    )
+    method = forms.ChoiceField(choices=None)
+    paid_at = forms.DateTimeField(
+        required=False,
+        widget=forms.DateTimeInput(
+            attrs={"type": "datetime-local"},
+            format="%Y-%m-%dT%H:%M",
+        ),
+        input_formats=["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%d"],
+    )
+    reference = forms.CharField(max_length=80, required=False)
+    notes = forms.CharField(
+        widget=forms.Textarea(attrs={"rows": 3}), required=False,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models import InvoicePayment
+        self.fields["method"].choices = InvoicePayment.Method.choices

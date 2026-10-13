@@ -1,0 +1,95 @@
+{% extends "sales/base_sales.html" %}
+{% block sales_content %}
+
+<h1>Invoice {{ invoice.internal_reference }}</h1>
+<p class="muted">
+  Supplier: <strong>{{ invoice.supplier.name }}</strong> ·
+  Invoice #: {{ invoice.invoice_number|default:"—" }} ·
+  Date: {{ invoice.invoice_date|default:"—" }}
+</p>
+
+{% if messages %}
+  {% for m in messages %}<p class="msg msg-{{ m.tags }}">{{ m }}</p>{% endfor %}
+{% endif %}
+
+<h2>Totals</h2>
+<table class="detail-table">
+  <tr><th>Computed total</th><td>{{ invoice.computed_total_amount }}</td></tr>
+  {% if invoice.stated_total_amount %}
+    <tr><th>Stated on invoice</th><td>{{ invoice.stated_total_amount }}</td></tr>
+  {% endif %}
+  <tr><th>Amount paid</th><td>{{ invoice.amount_paid }}</td></tr>
+  <tr><th>Balance due</th><td><strong>{{ invoice.balance_due }}</strong></td></tr>
+  <tr><th>Status</th><td>{{ invoice.get_payment_status_display }}</td></tr>
+</table>
+
+<h2>Linked receipts</h2>
+<table class="detail-table">
+  <thead><tr><th>Receipt</th><th>Product</th><th>Location</th><th>Qty</th><th>Unit cost</th><th>Total</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for r in invoice.receipts.all %}
+    <tr>
+      <td><a href="{% url 'sales:receipt_detail' r.pk %}">{{ r.receipt_number }}</a></td>
+      <td>{{ r.product.name }}</td>
+      <td>{{ r.operating_point.code }}</td>
+      <td>{{ r.quantity }} {{ r.unit.abbreviation }}</td>
+      <td>{{ r.unit_cost }}</td>
+      <td>{{ r.total_cost }}</td>
+      <td>{{ r.get_status_display }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No receipts yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Payment history</h2>
+<table class="detail-table">
+  <thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th>Recorded by</th><th>Notes</th></tr></thead>
+  <tbody>
+  {% for p in invoice.payments.all %}
+    <tr>
+      <td>{{ p.paid_at }}</td>
+      <td>{{ p.amount }}</td>
+      <td>{{ p.get_method_display }}</td>
+      <td>{{ p.reference|default:"—" }}</td>
+      <td>{{ p.paid_by.username }}</td>
+      <td>{{ p.notes|default:"—" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="muted">No payments recorded yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Record a payment</h2>
+<form method="post" action="{% url 'sales:invoice_record_payment' invoice.pk %}">
+  {% csrf_token %}
+  <p>
+    <label>Amount (KES)<br>{{ form.amount }}</label>
+  </p>
+  <p>
+    <label>Method<br>{{ form.method }}</label>
+  </p>
+  <p>
+    <label>Paid at (optional — defaults to now)<br>{{ form.paid_at }}</label>
+  </p>
+  <p>
+    <label>Reference (M-Pesa code, cheque number, bank ref)<br>{{ form.reference }}</label>
+  </p>
+  <p>
+    <label>Notes<br>{{ form.notes }}</label>
+  </p>
+  <button type="submit">Record payment</button>
+</form>
+
+<p style="margin-top:16px"><a href="{% url 'sales:invoice_list' %}">Back to invoices</a></p>
+
+<style>
+.detail-table { width:100%; border-collapse:collapse; margin:12px 0; }
+.detail-table th, .detail-table td { padding:6px 8px; border-bottom:1px solid #e5e7eb; text-align:left; vertical-align:top; }
+.muted { color:#6b7280; }
+.msg { padding:8px 12px; border-radius:6px; background:#eef; margin:6px 0; }
+</style>
+
+{% endblock %}

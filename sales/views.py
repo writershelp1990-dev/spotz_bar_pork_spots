@@ -1204,3 +1204,175 @@ def stock_alert_rule_toggle(request, pk):
     verb = "Activated" if rule.is_active else "Deactivated"
     messages.success(request, f"{verb} {rule.product.display_name} @ {rule.operating_point.name}.")
     return redirect("sales:stock_alert_rules")
+
+# =========================================================================
+# Supplier invoices and payments (Director-only)
+# =========================================================================
+@login_required
+def invoice_list(request):
+    """List supplier invoices. Director-only."""
+    from .models import SupplierInvoice
+    from business.models import Supplier
+
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Only the Director may view supplier invoices.")
+
+    qs = (SupplierInvoice.objects
+          .select_related("supplier", "created_by")
+          .order_by("-created_at"))
+
+    status = request.GET.get("status") or ""
+    if status in dict(SupplierInvoice.PaymentStatus.choices):
+        qs = qs.filter(payment_status=status)
+
+    supplier_id = request.GET.get("supplier") or ""
+    if supplier_id.isdigit():
+        qs = qs.filter(supplier_id=int(supplier_id))
+
+    return render(request, "sales/invoice_list.html", {
+        "invoices": qs[:500],
+        "suppliers": Supplier.objects.filter(is_active=True).order_by("name"),
+        "current_status": status,
+        "current_supplier": supplier_id,
+        "status_choices": SupplierInvoice.PaymentStatus.choices,
+    })
+
+
+@login_required
+def invoice_detail(request, pk):
+    """Show one invoice with linked receipts, payments, and Record Payment form."""
+    from .models import SupplierInvoice, InvoicePayment
+    from .forms import InvoicePaymentForm
+
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Only the Director may view supplier invoices.")
+
+    invoice = get_object_or_404(
+        SupplierInvoice.objects
+        .select_related("supplier", "created_by")
+        .prefetch_related("receipts__product", "receipts__operating_point",
+                          "payments__paid_by"),
+        pk=pk,
+    )
+    return render(request, "sales/invoice_detail.html", {
+        "invoice": invoice,
+        "form": InvoicePaymentForm(),
+        "payment_methods": InvoicePayment.Method.choices,
+    })
+
+
+@login_required
+def invoice_record_payment(request, pk):
+    """POST-only: record a payment against an invoice."""
+    from .models import SupplierInvoice
+    from .services import record_invoice_payment
+    from .forms import InvoicePaymentForm
+
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Only the Director may record payments.")
+    if request.method != "POST":
+        raise PermissionDenied("POST required.")
+
+    invoice = get_object_or_404(SupplierInvoice, pk=pk)
+    form = InvoicePaymentForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Payment could not be recorded. " + str(form.errors.as_text()))
+        return redirect("sales:invoice_detail", pk=invoice.pk)
+
+    try:
+        record_invoice_payment(
+            user=request.user,
+            invoice=invoice,
+            amount=form.cleaned_data["amount"],
+            method=form.cleaned_data["method"],
+            paid_at=form.cleaned_data.get("paid_at"),
+            reference=form.cleaned_data.get("reference", ""),
+            notes=form.cleaned_data.get("notes", ""),
+        )
+        messages.success(
+            request,
+            f"Payment recorded against {invoice.internal_reference}.")
+    except (PermissionDenied, ValidationError) as e:
+        messages.error(request, str(e))
+    return redirect("sales:invoice_detail", pk=invoice.pk)
+
+
+@login_required
+def outstanding_payables(request):
+    """Director-only report: every invoice with balance_due > 0."""
+    from .models import SupplierInvoice
+
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Only the Director may view this report.")
+
+    qs = (SupplierInvoice.objects
+          .select_related("supplier")
+          .filter(balance_due__gt=0)
+          .order_by("created_at"))
+    total = sum((inv.balance_due for inv in qs), Decimal("0.00"))
+    return render(request, "sales/outstanding_payables.html", {
+        "invoices": qs,
+        "total_due": total.quantize(Decimal("0.01")),
+    })
+
+
+@login_required
+def payments_made(request):
+    """Director-only report: payments in a date range."""
+    from .models import InvoicePayment
+    from datetime import datetime
+
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Only the Director may view this report.")
+
+    date_from = request.GET.get("from") or ""
+    date_to = request.GET.get("to") or ""
+    qs = (InvoicePayment.objects
+          .select_related("invoice__supplier", "paid_by")
+          .order_by("-paid_at"))
+
+    try:
+        if date_from:
+            qs = qs.filter(paid_at__date__gte=datetime.strptime(date_from, "%Y-%m-%d").date())
+        if date_to:
+            qs = qs.filter(paid_at__date__lte=datetime.strptime(date_to, "%Y-%m-%d").date())
+    except ValueError:
+        messages.error(request, "Invalid date format.")
+
+    total = sum((p.amount for p in qs), Decimal("0.00"))
+    return render(request, "sales/payments_made.html", {
+        "payments": qs[:1000],
+        "total_paid": total.quantize(Decimal("0.01")),
+        "date_from": date_from,
+        "date_to": date_to,
+    })
+
+@login_required
+def pnl_report(request):
+    """Director-only: profit-and-loss report for a date range."""
+    from .costing import pnl_for_range
+    from datetime import date, datetime, timedelta
+
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Only the Director may view P&L reports.")
+
+    today = timezone.localdate()
+    default_from = today - timedelta(days=30)
+
+    date_from = request.GET.get("from") or default_from.isoformat()
+    date_to = request.GET.get("to") or today.isoformat()
+
+    try:
+        since = datetime.strptime(date_from, "%Y-%m-%d").date()
+        until = datetime.strptime(date_to, "%Y-%m-%d").date()
+    except ValueError:
+        messages.error(request, "Invalid date format.")
+        since, until = default_from, today
+
+    data = pnl_for_range(since=since, until=until)
+
+    return render(request, "sales/pnl.html", {
+        "data": data,
+        "date_from": date_from,
+        "date_to": date_to,
+    })

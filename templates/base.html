@@ -135,6 +135,25 @@
             </a>
             {% endif %}
 
+                        {% if user.is_director %}
+            <div class="nav-section">FINANCE</div>
+
+            <a href="/sales/invoices/">
+                <span class="nav-icon">₣</span>
+                <span>Supplier Invoices</span>
+            </a>
+
+            <a href="/sales/reports/outstanding-payables/">
+                <span class="nav-icon">⌛</span>
+                <span>Outstanding Payables</span>
+            </a>
+
+            <a href="/sales/reports/payments-made/">
+                <span class="nav-icon">⇉</span>
+                <span>Payments Made</span>
+            </a>
+            {% endif %}
+
             <div class="nav-section">INSIGHTS</div>
 
             <a href="#" aria-disabled="true" title="Feature not implemented yet" class="feature-unavailable">

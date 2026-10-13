@@ -14,7 +14,7 @@ from audit.models import AuditLog
 from business.business_day_models import BusinessDay
 from catalog.models import Category, Product, ProductPriceHistory, UnitOfMeasure
 
-from .models import Sale, SaleItem, StockBalance, StockLedger
+from .models import InvoicePayment, Sale, SaleItem, StockBalance, StockLedger, StockReceipt, SupplierInvoice
 from .services import checkout
 
 User = get_user_model()
@@ -1286,3 +1286,82 @@ class ReceivingViewsTests(ReceivingWorkflowBase):
         receipt.refresh_from_db()
         self.assertEqual(receipt.status, StockReceipt.Status.REJECTED)
         self.assertIn("Wrong count", receipt.verification_notes)
+
+class InvoicePaymentViewsTests(ReceivingWorkflowBase):
+    """HTTP tests for the Director-only invoice and payment views."""
+
+    def _make_verified_invoice(self, amount="1000.00"):
+        from sales.services import record_delivery
+        r = record_delivery(
+            user=self.director, product=self.product,
+            operating_point=self.bar,
+            quantity="10.000", unit=self.unit,
+            unit_cost=str(Decimal(amount) / Decimal("10")),
+            supplier=self.supplier,
+            invoice_number="INV-VIEW-" + str(StockReceipt.objects.count()),
+        )
+        return r.supplier_invoice
+
+    def test_invoice_list_director_200(self):
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:invoice_list"))
+        self.assertEqual(r.status_code, 200)
+
+    def test_invoice_list_attendant_403(self):
+        self.client.force_login(self.bar_user)
+        r = self.client.get(reverse("sales:invoice_list"))
+        self.assertEqual(r.status_code, 403)
+
+    def test_invoice_detail_director_200(self):
+        invoice = self._make_verified_invoice("500.00")
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:invoice_detail", args=[invoice.pk]))
+        self.assertEqual(r.status_code, 200)
+
+    def test_invoice_detail_attendant_403(self):
+        invoice = self._make_verified_invoice("500.00")
+        self.client.force_login(self.bar_user)
+        r = self.client.get(reverse("sales:invoice_detail", args=[invoice.pk]))
+        self.assertEqual(r.status_code, 403)
+
+    def test_record_payment_director_200(self):
+        invoice = self._make_verified_invoice("500.00")
+        self.client.force_login(self.director)
+        r = self.client.post(
+            reverse("sales:invoice_record_payment", args=[invoice.pk]),
+            {"amount": "200.00", "method": "CASH", "reference": "REC-1"},
+        )
+        self.assertEqual(r.status_code, 302)
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.amount_paid, Decimal("200.00"))
+
+    def test_record_payment_attendant_403(self):
+        invoice = self._make_verified_invoice("500.00")
+        self.client.force_login(self.bar_user)
+        r = self.client.post(
+            reverse("sales:invoice_record_payment", args=[invoice.pk]),
+            {"amount": "100.00", "method": "CASH"},
+        )
+        self.assertEqual(r.status_code, 403)
+
+    def test_outstanding_payables_director_200(self):
+        invoice = self._make_verified_invoice("500.00")
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:outstanding_payables"))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("500", r.content.decode())
+
+    def test_outstanding_payables_attendant_403(self):
+        self.client.force_login(self.bar_user)
+        r = self.client.get(reverse("sales:outstanding_payables"))
+        self.assertEqual(r.status_code, 403)
+
+    def test_payments_made_director_200(self):
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:payments_made"))
+        self.assertEqual(r.status_code, 200)
+
+    def test_payments_made_attendant_403(self):
+        self.client.force_login(self.bar_user)
+        r = self.client.get(reverse("sales:payments_made"))
+        self.assertEqual(r.status_code, 403)
