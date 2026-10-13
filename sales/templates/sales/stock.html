@@ -98,6 +98,7 @@
                         <th>Product code</th>
                         <th>Stock on hand</th>
                         <th>Last stock update</th>
+                        <th>Restock</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -134,9 +135,20 @@
                                 Not recorded
                             {% endif %}
                         </td>
+                        <td>
+                            {% if row.restock_status.state == 'restock' %}
+                                <span class='restock-badge restock-badge--restock'>Restock needed</span>
+                            {% elif row.restock_status.state == 'low' %}
+                                <span class='restock-badge restock-badge--low'>Low</span>
+                            {% elif row.restock_status.state == 'ok' %}
+                                <span class='restock-badge restock-badge--ok'>OK</span>
+                            {% else %}
+                                <span class='restock-badge restock-badge--unmonitored' title='No stock alert rule configured'>Not monitored</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% empty %}
-                    <tr><td colspan="5" class="empty-state">No active products are registered yet.</td></tr>
+                    <tr><td colspan="6" class="empty-state">No active products are registered yet.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>

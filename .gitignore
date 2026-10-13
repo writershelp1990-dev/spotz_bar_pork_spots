@@ -180,3 +180,19 @@ config_settings_*/
 base_html_*/
 base_html_backup_*
 *_html_backup_*
+
+# Additional artifact folders created by fix scripts
+sales_restock_col_*/
+sales_restock_*/
+sales_scoping_*/
+sales_scoping_fix_*/
+sales_tests_scoping_*/
+sales_tests_imports_*/
+sales_tests_user_*/
+sales_tests_imports2_*/
+sales_views_import_*/
+sales_views_restock2_*/
+stock_scoping_*/
+stock_scoping_fix_*/
+stock_tpl_restock_col_*/
+stock_restock_alerts_*/

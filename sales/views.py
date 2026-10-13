@@ -379,13 +379,45 @@ def price_add(request):
         "form": form, "heading": "Add selling price"
     })
 
+def allowed_stock_points(user):
+    """Return the operating points a user may see stock for.
+
+    Director: all active points.
+    Staff: only their Employee.operating_point, if employment status
+    permits (ACTIVE or OFF_DUTY).
+    Others: empty list.
+    """
+    from accounts.models import Employee
+    try:
+        from accounts.employee_management import effective_employment_status
+    except ImportError:
+        from accounts.models import effective_employment_status  # fallback
+    if not user.is_authenticated:
+        return []
+    if getattr(user, "is_director", False):
+        return list(OperatingPoint.objects.filter(is_active=True).order_by("name"))
+    if not getattr(user, "is_active_staff_user", False):
+        return []
+    emp = getattr(user, "employee_profile", None)
+    if emp is None or emp.operating_point_id is None:
+        return []
+    status = effective_employment_status(emp)
+    if status not in {
+        Employee.EmploymentStatus.ACTIVE,
+        Employee.EmploymentStatus.OFF_DUTY,
+    }:
+        return []
+    if not emp.operating_point.is_active:
+        return []
+    return [emp.operating_point]
+
+
 @login_required
 def stock_home(request):
-    director_required(request.user)
+    if not (getattr(request.user, "is_director", False) or getattr(request.user, "is_active_staff_user", False)):
+        raise PermissionDenied("Active staff account required.")
 
-    points = list(
-        OperatingPoint.objects.filter(is_active=True).order_by("name")
-    )
+    points = allowed_stock_points(request.user)
 
     # Include all products in the lookup so historical stock for an
     # inactive product is not silently hidden.
@@ -413,6 +445,15 @@ def stock_home(request):
             balance.product_id
         )
 
+    # --- Load stock alert rules for the restock status column ---
+    from sales.models import StockAlertRule as _SAR
+    _rules_qs = (
+        _SAR.objects
+        .filter(is_active=True, operating_point__in=points)
+        .select_related('product')
+    )
+    _rule_map = {(r.operating_point_id, r.product_id): r for r in _rules_qs}
+
     inventory_sections = []
     for point in points:
         assigned_ids = set(
@@ -430,11 +471,24 @@ def stock_home(request):
         rows = []
         for product in point_products:
             balance = balance_map.get((point.pk, product.pk))
+            # Determine restock status for this row
+            _rule = _rule_map.get((point.pk, product.pk))
+            _qty = balance.quantity if balance else 0
+            if _rule is None:
+                _status = {'state': 'unmonitored', 'label': 'Not monitored', 'rule': None}
+            elif _qty <= _rule.minimum_quantity:
+                _status = {'state': 'restock', 'label': 'Restock needed', 'rule': _rule}
+            elif _qty <= _rule.minimum_quantity * Decimal('1.25'):
+                _status = {'state': 'low', 'label': 'Low', 'rule': _rule}
+            else:
+                _status = {'state': 'ok', 'label': 'OK', 'rule': _rule}
+
             rows.append({
                 "product": product,
                 "quantity": balance.quantity if balance else 0,
                 "updated_at": balance.updated_at if balance else None,
                 "is_zero": balance is None or balance.quantity == 0,
+                "restock_status": _status,
             })
 
         inventory_sections.append({
@@ -445,35 +499,26 @@ def stock_home(request):
         })
 
     # --- Restocking alerts (Director-visible low-stock summary) ---
-    from sales.models import StockAlertRule
     restock_alerts = []
-    rules_qs = (
-        StockAlertRule.objects
-        .filter(is_active=True)
-        .select_related(
-            "product", "operating_point",
-            "product__selling_unit", "product__category",
-        )
-    )
-    for rule in rules_qs:
-        bal = (
+    for _r in _rules_qs:
+        _bal = (
             StockBalance.objects
-            .filter(product=rule.product, operating_point=rule.operating_point)
-            .values_list("quantity", flat=True)
+            .filter(product=_r.product, operating_point=_r.operating_point)
+            .values_list('quantity', flat=True)
             .first()
         )
-        bal = bal if bal is not None else 0
-        if bal <= rule.minimum_quantity:
+        _bal = _bal if _bal is not None else 0
+        if _bal <= _r.minimum_quantity:
             restock_alerts.append({
-                "product": rule.product,
-                "operating_point": rule.operating_point,
-                "balance": bal,
-                "minimum": rule.minimum_quantity,
-                "target": rule.target_quantity,
-                "shortfall": max(rule.target_quantity - bal, 0),
+                'product': _r.product,
+                'operating_point': _r.operating_point,
+                'balance': _bal,
+                'minimum': _r.minimum_quantity,
+                'target': _r.target_quantity,
+                'shortfall': max(_r.target_quantity - _bal, 0),
             })
     restock_alerts.sort(
-        key=lambda r: (r["operating_point"].code, r["product"].name)
+        key=lambda r: (r['operating_point'].code, r['product'].name)
     )
 
     return render(request, "sales/stock.html", {

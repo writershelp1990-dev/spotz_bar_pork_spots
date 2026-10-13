@@ -9,13 +9,15 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from accounts.models import OperatingPoint
+from accounts.models import Employee, OperatingPoint, RoleDefinition
 from audit.models import AuditLog
 from business.business_day_models import BusinessDay
 from catalog.models import Category, Product, ProductPriceHistory, UnitOfMeasure
 
 from .models import Sale, SaleItem, StockBalance, StockLedger
 from .services import checkout
+
+User = get_user_model()
 
 
 class CheckoutServiceTests(TestCase):
@@ -769,3 +771,117 @@ class MpesaV2PaymentTests(TestCase):
         response = self.client.get(reverse("sales:api_open_sales"))
         # Either 403 or redirect to login
         self.assertIn(response.status_code, (302, 403))
+# =========================================================================
+# Per-point stock visibility tests
+#
+# An attendant should see only their own operating point's stock on the
+# /sales/stock/ balances page. The Director sees every point.
+# =========================================================================
+class StockScopingTests(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        cls.bar_role, _ = RoleDefinition.objects.get_or_create(
+            code="BAR_ATTENDANT", defaults={"name": "Bar Attendant"})
+        cls.kit_role, _ = RoleDefinition.objects.get_or_create(
+            code="KITCHEN_ATTENDANT", defaults={"name": "Kitchen Attendant"})
+
+        cls.director = User.objects.create_user(
+            username="dir_scope", password="pw", role="DIRECTOR",
+            role_definition=cls.dir_role, is_active=True, is_active_staff=True)
+
+        cls.bar, _ = OperatingPoint.objects.get_or_create(
+            code="BAR-SC", defaults={"name": "Bar SC", "is_active": True})
+        cls.kitchen, _ = OperatingPoint.objects.get_or_create(
+            code="KIT-SC", defaults={"name": "Kitchen SC", "is_active": True})
+
+        cls.bar_user = User.objects.create_user(
+            username="bar_scope", password="pw", role="BAR_ATTENDANT",
+            role_definition=cls.bar_role, is_active=True, is_active_staff=True)
+        Employee.objects.create(
+            user=cls.bar_user, operating_point=cls.bar,
+            employment_status=Employee.EmploymentStatus.ACTIVE)
+
+        cls.kit_user = User.objects.create_user(
+            username="kit_scope", password="pw", role="KITCHEN_ATTENDANT",
+            role_definition=cls.kit_role, is_active=True, is_active_staff=True)
+        Employee.objects.create(
+            user=cls.kit_user, operating_point=cls.kitchen,
+            employment_status=Employee.EmploymentStatus.ACTIVE)
+
+        cls.unit, _ = UnitOfMeasure.objects.get_or_create(
+            abbreviation="pc-sc",
+            defaults={"name": "Piece SC", "unit_type": "COUNT", "is_active": True})
+        cls.cat, _ = Category.objects.get_or_create(
+            name="Scoping Test", defaults={"is_active": True})
+
+        cls.bar_product = Product.objects.create(
+            name="ScopingBarOnlyProduct", code="SCP-BAR-1",
+            category=cls.cat,
+            selling_unit=cls.unit, purchase_unit=cls.unit,
+            purchase_to_sale_ratio=Decimal("1"),
+            product_type="NON_ALCOHOLIC",
+            is_active=True, track_inventory=True)
+        cls.bar_product.operating_points.add(cls.bar)
+
+        cls.kit_product = Product.objects.create(
+            name="ScopingKitchenOnlyProduct", code="SCP-KIT-1",
+            category=cls.cat,
+            selling_unit=cls.unit, purchase_unit=cls.unit,
+            purchase_to_sale_ratio=Decimal("1"),
+            product_type="NON_ALCOHOLIC",
+            is_active=True, track_inventory=True)
+        cls.kit_product.operating_points.add(cls.kitchen)
+
+        cls.unit_pc, _ = UnitOfMeasure.objects.get_or_create(
+            abbreviation="pc",
+            defaults={"name": "Piece", "unit_type": "COUNT", "is_active": True})
+
+        StockBalance.objects.create(
+            product=cls.bar_product, operating_point=cls.bar,
+            quantity=Decimal("42.000"))
+        StockBalance.objects.create(
+            product=cls.kit_product, operating_point=cls.kitchen,
+            quantity=Decimal("99.000"))
+
+    def test_director_sees_all_points(self):
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:stock"))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("ScopingBarOnlyProduct", body)
+        self.assertIn("ScopingKitchenOnlyProduct", body)
+
+    def test_bar_attendant_sees_only_bar(self):
+        self.client.force_login(self.bar_user)
+        r = self.client.get(reverse("sales:stock"))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("ScopingBarOnlyProduct", body)
+        self.assertNotIn("ScopingKitchenOnlyProduct", body)
+
+    def test_kitchen_attendant_sees_only_kitchen(self):
+        self.client.force_login(self.kit_user)
+        r = self.client.get(reverse("sales:stock"))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertNotIn("ScopingBarOnlyProduct", body)
+        self.assertIn("ScopingKitchenOnlyProduct", body)
+
+    def test_anonymous_redirects_to_login(self):
+        r = self.client.get(reverse("sales:stock"))
+        self.assertEqual(r.status_code, 302)
+
+    def test_user_without_employee_profile_sees_nothing(self):
+        orphan = User.objects.create_user(
+            username="orphan_scope", password="pw", role="BAR_ATTENDANT",
+            is_active=True, is_active_staff=True)
+        self.client.force_login(orphan)
+        r = self.client.get(reverse("sales:stock"))
+        self.assertIn(r.status_code, (200, 403))
+        if r.status_code == 200:
+            body = r.content.decode()
+            self.assertNotIn("ScopingBarOnlyProduct", body)
+            self.assertNotIn("ScopingKitchenOnlyProduct", body)
