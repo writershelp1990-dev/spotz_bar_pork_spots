@@ -41,7 +41,7 @@ class _AdBase(_AdTestCase):
 
     def open_day(self):
         return _AdDay.objects.create(
-            business_date=_ad_tz.now().date(),
+            business_date=_ad_tz.localdate(),
             status=_AdDay.Status.OPEN,
             actual_opened_at=_ad_tz.now(),
             opened_by=self.director,
@@ -98,3 +98,101 @@ class AutoDeployServiceTests(_AdBase):
         day = _AdDay.objects.get(status="OPEN")
         _ad_sweep(day); _ad_sweep(day); _ad_sweep(day)
         self.assertEqual(_AdDeploy.objects.count(), 1)
+
+# ---------------------------------------------------------------------------
+# Point-scoped open / close
+# ---------------------------------------------------------------------------
+from django.core.exceptions import PermissionDenied as _pd_PermDeniedT, ValidationError as _pd_ValErrT
+from business.services import open_point as _pd_openT, close_point as _pd_closeT
+from business.business_day_models import PointDay as _pd_PointDayT
+
+
+class PointDayTests(_AdBase):
+    """Open/close a point independently; auto-close the global day at the end."""
+
+    def test_attendant_can_open_their_point(self):
+        self.client.force_login(self.director)  # simplest actor
+        pd = _pd_openT(user=self.director, point=self.bar)
+        self.assertIsNotNone(pd)
+        self.assertTrue(pd.is_open)
+        self.assertEqual(pd.operating_point, self.bar)
+
+    def test_open_creates_global_day_if_missing(self):
+        # No day exists yet
+        self.assertEqual(_AdDay.objects.count(), 0)
+        _pd_openT(user=self.director, point=self.bar)
+        self.assertEqual(_AdDay.objects.filter(status="OPEN").count(), 1)
+        self.assertEqual(_pd_PointDayT.objects.count(), 1)
+
+    def test_open_point_when_day_exists_uses_that_day(self):
+        day = self.open_day()
+        _pd_openT(user=self.director, point=self.bar)
+        pd = _pd_PointDayT.objects.get(operating_point=self.bar)
+        self.assertEqual(pd.business_day, day)
+
+    def test_non_director_can_open_own_point(self):
+        emp = self.make_employee("ad_pd_own", self.bar)
+        self.open_day()
+        pd = _pd_openT(user=emp.user, point=self.bar)
+        self.assertIsNotNone(pd)
+        self.assertTrue(pd.is_open)
+
+    def test_non_director_cannot_open_other_point(self):
+        emp = self.make_employee("ad_pd_other", self.bar)
+        self.open_day()
+        with self.assertRaises(_pd_PermDeniedT):
+            _pd_openT(user=emp.user, point=self.kitchen)
+
+    def test_close_point_sets_closed_at(self):
+        self.open_day()
+        _pd_openT(user=self.director, point=self.bar)
+        _pd_closeT(user=self.director, point=self.bar)
+        pd = _pd_PointDayT.objects.get(operating_point=self.bar)
+        self.assertIsNotNone(pd.closed_at)
+        self.assertEqual(pd.closed_by, self.director)
+
+    def test_last_close_auto_closes_business_day(self):
+        self.open_day()
+        _pd_openT(user=self.director, point=self.bar)
+        _pd_openT(user=self.director, point=self.kitchen)
+        _pd_closeT(user=self.director, point=self.bar)
+        # day still open
+        self.assertEqual(_AdDay.objects.filter(status="OPEN").count(), 1)
+        _pd_closeT(user=self.director, point=self.kitchen)
+        # now auto-closed
+        self.assertEqual(_AdDay.objects.filter(status="OPEN").count(), 0)
+        self.assertEqual(_AdDay.objects.filter(status="CLOSED").count(), 1)
+
+    def test_close_does_not_auto_close_when_others_still_open(self):
+        self.open_day()
+        _pd_openT(user=self.director, point=self.bar)
+        _pd_openT(user=self.director, point=self.kitchen)
+        _pd_closeT(user=self.director, point=self.bar)
+        self.assertEqual(_AdDay.objects.filter(status="OPEN").count(), 1)
+
+    def test_reopen_point_after_close(self):
+        self.open_day()
+        _pd_openT(user=self.director, point=self.bar)
+        _pd_closeT(user=self.director, point=self.bar)
+
+        # Confirm closed state straight from the DB
+        pd = _pd_PointDayT.objects.get(operating_point=self.bar)
+        self.assertFalse(pd.is_open)
+        self.assertIsNotNone(pd.closed_at)
+
+        # Reopen
+        _pd_openT(user=self.director, point=self.bar)
+
+        # Re-read from the DB — a new query, not refresh_from_db
+        pd = _pd_PointDayT.objects.get(operating_point=self.bar)
+        self.assertTrue(pd.is_open)
+        self.assertIsNone(pd.closed_at)
+        self.assertIsNone(pd.closed_by)
+        self.assertEqual(pd.reopened_count, 1)
+
+    def test_idempotent_open(self):
+        self.open_day()
+        _pd_openT(user=self.director, point=self.bar)
+        _pd_openT(user=self.director, point=self.bar)
+        _pd_openT(user=self.director, point=self.bar)
+        self.assertEqual(_pd_PointDayT.objects.count(), 1)

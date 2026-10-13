@@ -101,3 +101,135 @@ def auto_deploy_all_for_day(business_day):
         if result:
             created.append(result)
     return created
+
+
+# ---------------------------------------------------------------------------
+# Point-scoped open / close
+# ---------------------------------------------------------------------------
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.utils import timezone as _pd_tz2
+from business.business_day_models import PointDay as _pd_PointDay
+from business.permissions import user_can_open_point as _pd_can_open
+
+
+@transaction.atomic
+def open_point(*, user, point, business_day=None):
+    """Open a point for business.
+
+    Creates the global BusinessDay if none is open (opened_by=user),
+    then get_or_creates the PointDay for (day, point). If a PointDay
+    already exists and is open, returns it untouched. If it exists and
+    is closed, reopens it and bumps reopened_count.
+    """
+    if not point.is_active:
+        raise ValidationError(f"{point.code} is inactive.")
+    if not _pd_can_open(user, point):
+        raise PermissionDenied(
+            f"You are not authorized to open {point.code}.")
+
+    if business_day is None:
+        business_day = BusinessDay.objects.filter(
+            status=BusinessDay.Status.OPEN).first()
+    if business_day is None:
+        # Create the global day on the fly
+        today = _pd_tz2.localdate()
+        business_day = BusinessDay.objects.filter(
+            business_date=today).first()
+        if business_day is None:
+            business_day = BusinessDay.objects.create(
+                business_date=today,
+                status=BusinessDay.Status.OPEN,
+                actual_opened_at=_pd_tz2.now(),
+                opened_by=user,
+            )
+
+    pd = _pd_PointDay.objects.select_for_update().filter(
+        business_day=business_day,
+        operating_point=point,
+    ).first()
+
+    if pd is None:
+        pd = _pd_PointDay.objects.create(
+            business_day=business_day,
+            operating_point=point,
+            opened_at=_pd_tz2.now(),
+            opened_by=user,
+        )
+    else:
+        if pd.is_open:
+            return pd  # already open, no-op
+        pd.closed_at = None
+        pd.closed_by = None
+        pd.reopened_count = pd.reopened_count + 1
+        pd.save(update_fields=["closed_at", "closed_by",
+                               "reopened_count", "updated_at"])
+
+    try:
+        from audit.services import record_audit
+        record_audit(
+            user=user, action="UPDATE", obj=business_day,
+            operating_point=point,
+            reason=f"Opened {point.code}",
+            changes={"action": "point_open", "point": point.code},
+        )
+    except Exception:
+        log.exception("audit failed for point_open")
+    return pd
+
+
+@transaction.atomic
+def close_point(*, user, point, business_day=None):
+    """Close a point. If it was the last open point, close the global day."""
+    if not _pd_can_open(user, point):
+        raise PermissionDenied(
+            f"You are not authorized to close {point.code}.")
+
+    if business_day is None:
+        business_day = BusinessDay.objects.filter(
+            status=BusinessDay.Status.OPEN).first()
+    if business_day is None:
+        raise ValidationError("No open business day.")
+
+    pd = _pd_PointDay.objects.select_for_update().filter(
+        business_day=business_day,
+        operating_point=point,
+    ).first()
+    if pd is None or not pd.is_open:
+        raise ValidationError(f"{point.code} is not currently open.")
+
+    pd.closed_at = _pd_tz2.now()
+    pd.closed_by = user
+    pd.save(update_fields=["closed_at", "closed_by", "updated_at"])
+
+    # Auto-close the global day if no PointDays remain open
+    still_open = _pd_PointDay.objects.filter(
+        business_day=business_day, closed_at__isnull=True,
+    ).exists()
+    if not still_open:
+        business_day.status = BusinessDay.Status.CLOSED
+        business_day.actual_closed_at = _pd_tz2.now()
+        business_day.closed_by = user
+        business_day.save(update_fields=[
+            "status", "actual_closed_at", "closed_by", "updated_at"])
+
+    try:
+        from audit.services import record_audit
+        record_audit(
+            user=user, action="UPDATE", obj=business_day,
+            operating_point=point,
+            reason=f"Closed {point.code}",
+            changes={"action": "point_close", "point": point.code},
+        )
+    except Exception:
+        log.exception("audit failed for point_close")
+    return pd
+
+
+def point_day_for(point, business_day):
+    """Return the PointDay row for a point on a day, or None."""
+    if business_day is None:
+        return None
+    return _pd_PointDay.objects.filter(
+        business_day=business_day,
+        operating_point=point,
+    ).first()
