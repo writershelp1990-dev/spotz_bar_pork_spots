@@ -1,0 +1,18 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_content %}
+<h1>Recipes</h1>
+<p><a href="{% url 'stock:recipe_create' %}">+ New recipe</a></p>
+{% for r in recipes %}
+  <h3>{{ r.name }} — {{ r.product.display_name }}</h3>
+  <table class="stock-table">
+    <thead><tr><th>Ingredient</th><th>Quantity per unit</th></tr></thead>
+    <tbody>
+    {% for it in r.items.all %}
+      <tr><td>{{ it.ingredient.name }}</td><td>{{ it.quantity }} {{ it.unit.abbreviation }}</td></tr>
+    {% empty %}<tr><td colspan="2" class="muted">(no items)</td></tr>{% endfor %}
+    </tbody>
+  </table>
+{% empty %}
+  <p class="muted">No recipes yet.</p>
+{% endfor %}
+{% endblock %}

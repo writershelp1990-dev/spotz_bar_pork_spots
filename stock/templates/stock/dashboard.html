@@ -1,0 +1,56 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_content %}
+<h1>Stock Movements</h1>
+<p class="muted">
+  {% if is_dir %}Director view.{% else %}Deployed to {{ point.code }}.{% endif %}
+</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0">
+  <a href="{% url 'stock:transfer_list' %}" style="padding:14px;background:#f9fafb;border-radius:8px;text-decoration:none;color:inherit">
+    <strong>{{ pending_count }}</strong><br><span class="muted">Pending transfers</span>
+  </a>
+  {% if is_dir %}
+  <a href="{% url 'stock:transfer_list' %}" style="padding:14px;background:#dbeafe;border-radius:8px;text-decoration:none;color:inherit">
+    <strong>{{ approved_count }}</strong><br><span class="muted">Approved — ready to complete</span>
+  </a>
+  {% endif %}
+  <a href="{% url 'stock:batch_list' %}" style="padding:14px;background:#f9fafb;border-radius:8px;text-decoration:none;color:inherit">
+    <strong>{{ batch_count }}</strong><br><span class="muted">Production batches</span>
+  </a>
+</div>
+
+<h2>Recent transfers</h2>
+<table class="stock-table">
+  <thead><tr><th>#</th><th>Product</th><th>From</th><th>To</th><th>Qty</th><th>Status</th><th>Requested</th></tr></thead>
+  <tbody>
+  {% for t in recent_transfers %}
+    <tr>
+      <td><a href="{% url 'stock:transfer_detail' t.pk %}">{{ t.transfer_number }}</a></td>
+      <td>{{ t.product.name }}</td>
+      <td>{{ t.source_point.code }}</td>
+      <td>{{ t.destination_point.code }}</td>
+      <td>{{ t.quantity }} {{ t.unit.abbreviation }}</td>
+      <td><span class="badge badge-{{ t.status }}">{{ t.get_status_display }}</span></td>
+      <td>{{ t.requested_at }}</td>
+    </tr>
+  {% empty %}<tr><td colspan="7" class="muted">No transfers yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+
+<h2>Recent production batches</h2>
+<table class="stock-table">
+  <thead><tr><th>#</th><th>Recipe</th><th>Prepared at</th><th>Produced</th><th>By</th><th>When</th></tr></thead>
+  <tbody>
+  {% for b in recent_batches %}
+    <tr>
+      <td>{{ b.batch_number }}</td>
+      <td>{{ b.recipe.name }}</td>
+      <td>{{ b.preparation_point.code }}</td>
+      <td>{{ b.quantity_produced }} × {{ b.output_product.name }}</td>
+      <td>{{ b.produced_by.username }}</td>
+      <td>{{ b.produced_at }}</td>
+    </tr>
+  {% empty %}<tr><td colspan="6" class="muted">No batches yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

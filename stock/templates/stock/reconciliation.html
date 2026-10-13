@@ -1,0 +1,35 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_content %}
+<h1>Daily Reconciliation — {{ target_date }}</h1>
+<form method="get" style="margin-bottom:12px">
+  <label>Date: <input type="date" name="date" value="{{ target_date|date:'Y-m-d' }}"></label>
+  <button type="submit">Load</button>
+</form>
+<p class="muted">Quantity reconciliation only. Not financial revenue or profit.</p>
+
+{% for row in rows %}
+  <h3>{{ row.product.display_name }}</h3>
+  {% for pr in row.points %}
+    <table class="stock-table">
+      <thead>
+        <tr>
+          <th>{{ pr.operating_point.code }}</th>
+          <th>Opening</th>
+          <th>Closing</th>
+          {% for k, v in pr.summary.items %}<th>{{ k }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>—</td>
+          <td>{{ pr.opening }}</td>
+          <td>{{ pr.closing }}</td>
+          {% for k, v in pr.summary.items %}<td>{{ v }}</td>{% endfor %}
+        </tr>
+      </tbody>
+    </table>
+  {% endfor %}
+{% empty %}
+  <p class="muted">No stock movements on {{ target_date }}.</p>
+{% endfor %}
+{% endblock %}

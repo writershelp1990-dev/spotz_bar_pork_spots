@@ -1,0 +1,10 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_content %}
+<h1>Request a Stock Transfer</h1>
+<p class="muted">The Director approves and completes the transfer. Stock is not moved until completed.</p>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Submit request</button>
+</form>
+{% endblock %}

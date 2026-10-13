@@ -1,0 +1,40 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_content %}
+<h1>Transfer {{ transfer.transfer_number }}</h1>
+<p class="muted"><span class="badge badge-{{ transfer.status }}">{{ transfer.get_status_display }}</span></p>
+
+<table class="stock-table">
+  <tr><th>Product</th><td>{{ transfer.product.name }} ({{ transfer.product.code }})</td></tr>
+  <tr><th>From</th><td>{{ transfer.source_point.code }} — {{ transfer.source_point.name }}</td></tr>
+  <tr><th>To</th><td>{{ transfer.destination_point.code }} — {{ transfer.destination_point.name }}</td></tr>
+  <tr><th>Quantity</th><td>{{ transfer.quantity }} {{ transfer.unit.abbreviation }}</td></tr>
+  <tr><th>Type</th><td>{{ transfer.get_transfer_type_display }}</td></tr>
+  <tr><th>Reason</th><td>{{ transfer.reason|default:"—" }}</td></tr>
+  <tr><th>Reference</th><td>{{ transfer.reference|default:"—" }}</td></tr>
+  <tr><th>Requested by</th><td>{{ transfer.requested_by.username }} at {{ transfer.requested_at }}</td></tr>
+  {% if transfer.approved_by %}<tr><th>Approved by</th><td>{{ transfer.approved_by.username }} at {{ transfer.approved_at }}</td></tr>{% endif %}
+  {% if transfer.completed_by %}<tr><th>Completed by</th><td>{{ transfer.completed_by.username }} at {{ transfer.completed_at }}</td></tr>{% endif %}
+</table>
+
+{% if is_dir %}
+  {% if transfer.status == "PENDING" %}
+    <form method="post" action="{% url 'stock:transfer_approve' transfer.pk %}" style="display:inline">
+      {% csrf_token %}<button type="submit">Approve</button>
+    </form>
+    <form method="post" action="{% url 'stock:transfer_cancel' transfer.pk %}" style="display:inline">
+      {% csrf_token %}
+      <input type="text" name="reason" placeholder="Cancellation reason" required>
+      <button type="submit">Cancel</button>
+    </form>
+  {% elif transfer.status == "APPROVED" %}
+    <form method="post" action="{% url 'stock:transfer_complete' transfer.pk %}" style="display:inline">
+      {% csrf_token %}<button type="submit">Complete transfer</button>
+    </form>
+    <form method="post" action="{% url 'stock:transfer_cancel' transfer.pk %}" style="display:inline">
+      {% csrf_token %}
+      <input type="text" name="reason" placeholder="Cancellation reason" required>
+      <button type="submit">Cancel</button>
+    </form>
+  {% endif %}
+{% endif %}
+{% endblock %}

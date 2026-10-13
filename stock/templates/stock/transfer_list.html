@@ -1,0 +1,21 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_content %}
+<h1>Stock Transfers</h1>
+<p><a href="{% url 'stock:transfer_request' %}">+ Request a transfer</a></p>
+<table class="stock-table">
+  <thead><tr><th>#</th><th>Product</th><th>From</th><th>To</th><th>Qty</th><th>Status</th><th>Requested</th></tr></thead>
+  <tbody>
+  {% for t in transfers %}
+    <tr>
+      <td><a href="{% url 'stock:transfer_detail' t.pk %}">{{ t.transfer_number }}</a></td>
+      <td>{{ t.product.name }}</td>
+      <td>{{ t.source_point.code }}</td>
+      <td>{{ t.destination_point.code }}</td>
+      <td>{{ t.quantity }} {{ t.unit.abbreviation }}</td>
+      <td><span class="badge badge-{{ t.status }}">{{ t.get_status_display }}</span></td>
+      <td>{{ t.requested_at }}</td>
+    </tr>
+  {% empty %}<tr><td colspan="7" class="muted">No transfers.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

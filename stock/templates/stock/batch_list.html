@@ -1,0 +1,21 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_content %}
+<h1>Production Batches</h1>
+<p><a href="{% url 'stock:batch_create' %}">+ Record a batch</a></p>
+<table class="stock-table">
+  <thead><tr><th>#</th><th>Recipe</th><th>Prepared at</th><th>Produced</th><th>By</th><th>When</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for b in batches %}
+    <tr>
+      <td>{{ b.batch_number }}</td>
+      <td>{{ b.recipe.name }}</td>
+      <td>{{ b.preparation_point.code }}</td>
+      <td>{{ b.quantity_produced }} × {{ b.output_product.name }}</td>
+      <td>{{ b.produced_by.username }}</td>
+      <td>{{ b.produced_at }}</td>
+      <td><span class="badge">{{ b.get_status_display }}</span></td>
+    </tr>
+  {% empty %}<tr><td colspan="7" class="muted">No batches.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

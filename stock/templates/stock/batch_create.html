@@ -1,0 +1,10 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_content %}
+<h1>Record a Production Batch</h1>
+<p class="muted">Ingredients will be consumed from the source operating point's stock based on the recipe.</p>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Record batch</button>
+</form>
+{% endblock %}

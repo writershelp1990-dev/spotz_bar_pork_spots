@@ -81,13 +81,21 @@
             <a href="/sales/catalog/">
                 <span class="nav-icon">◇</span>
                 <span>Products</span>
-            </a>            {% if user.is_director %}
+            </a>
+
+            {% if user.is_director %}
             <a href="/sales/stock/alert-rules/">
                 <span class="nav-icon">▦</span>
                 <span>Low-Stock Rules</span>
             </a>
             {% endif %}
+
             {% if user.is_active_staff_user %}
+            <a href="/stock/">
+                <span class="nav-icon">⇄</span>
+                <span>Stock</span>
+            </a>
+
             <a href="/property/">
                 <span class="nav-icon">▧</span>
                 <span>Property &amp; Assets</span>

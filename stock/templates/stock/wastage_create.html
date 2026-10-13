@@ -1,0 +1,10 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_content %}
+<h1>Record Wastage</h1>
+<p class="muted">Wastage is not a sale. It reduces stock and appears in the reconciliation.</p>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Record wastage</button>
+</form>
+{% endblock %}

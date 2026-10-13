@@ -11,8 +11,5 @@ urlpatterns = [
     # Phase 1 Business-Day management.
     path("business-day/", include("business.business_day_urls")),
     path("property/", include("property.urls")),
+    path("stock/", include("stock.urls")),
 ]
-
-
-
-# Phase 1 Business-Day management.

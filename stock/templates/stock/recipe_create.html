@@ -1,0 +1,46 @@
+{% extends "stock/base_stock.html" %}
+{% block stock_content %}
+<h1>New Recipe</h1>
+<form method="post">
+  {% csrf_token %}
+  <p>
+    <label>Finished sellable product<br>
+      <select name="product" required>
+        <option value="">— pick a product —</option>
+        {% for p in products %}<option value="{{ p.pk }}">{{ p.display_name }}</option>{% endfor %}
+      </select>
+    </label>
+  </p>
+  <p>
+    <label>Recipe name (optional)<br>
+      <input type="text" name="name" maxlength="120" placeholder="defaults to product name">
+    </label>
+  </p>
+
+  <h3>Ingredients</h3>
+  <p class="muted small">Fill as many rows as you need. Empty rows are ignored.</p>
+  <table class="stock-table">
+    <thead><tr><th>Ingredient</th><th>Quantity per unit sold</th><th>Unit</th></tr></thead>
+    <tbody>
+    {% for i in ingredient_rows %}
+      <tr>
+        <td>
+          <select name="ingredient_{{ i }}">
+            <option value="">— pick —</option>
+            {% for ing in ingredients %}<option value="{{ ing.pk }}">{{ ing.display_name }}</option>{% endfor %}
+          </select>
+        </td>
+        <td><input type="number" step="0.001" min="0" name="quantity_{{ i }}"></td>
+        <td>
+          <select name="unit_{{ i }}">
+            <option value="">—</option>
+            {% for u in units %}<option value="{{ u.pk }}">{{ u.abbreviation }}</option>{% endfor %}
+          </select>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <button type="submit">Create recipe</button>
+</form>
+{% endblock %}
