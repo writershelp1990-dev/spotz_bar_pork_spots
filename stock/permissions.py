@@ -9,7 +9,11 @@ from functools import wraps
 
 from django.core.exceptions import PermissionDenied
 
-from accounts.models import Employee, effective_employment_status
+from accounts.models import Employee
+try:
+    from accounts.employee_management import effective_employment_status
+except ImportError:
+    from accounts.models import effective_employment_status  # fallback
 
 
 def is_director(user) -> bool:
