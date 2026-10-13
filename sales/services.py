@@ -214,6 +214,19 @@ def checkout(*, user, operating_point, payment_method, amount_tendered, items_js
             )
         else:
             balance = None
+            # Stage 6: if this product has an active Recipe, consume the
+            # recipe's ingredients instead of deducting a finished product
+            # (which has no stock of its own). Non-recipe products that
+            # don't track inventory behave exactly as before — the
+            # consume_recipe_ingredients() function returns [] if no recipe.
+            from stock.recipes import consume_recipe_ingredients
+            consume_recipe_ingredients(
+                sale=sale,
+                product=product,
+                quantity=qty,
+                operating_point=operating_point,
+                user=user,
+            )
 
         item = SaleItem.objects.create(
             sale=sale, product=product,
