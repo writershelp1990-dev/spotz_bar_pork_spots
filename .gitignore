@@ -219,3 +219,6 @@ cleanup_*/
 *.bak_*
 
 auto_deploy_*/
+
+pointday_*/
+auto_deploy_*/
