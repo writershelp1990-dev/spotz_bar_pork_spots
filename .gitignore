@@ -204,3 +204,7 @@ receiving_stageA_fix_*/
 receiving_stageB_*/
 receiving_stageC_*/
 receiving_stageD_*/
+# Suppliers UI + session closure dev artifacts
+suppliers_ui_*/
+suppliers_ui_fix_*/
+business_urls_*/

@@ -1,0 +1,11 @@
+<div class="supplier-nav" style="margin-bottom:16px;padding:8px 0;border-bottom:1px solid #eee">
+  <a href="{% url 'business:supplier_list' %}">All suppliers</a> ·
+  <a href="{% url 'business:supplier_create' %}">Add supplier</a>
+  {% if supplier %}
+    · <span class="muted">{{ supplier.name }}</span>
+  {% endif %}
+</div>
+<style>
+.supplier-nav a { text-decoration: none; }
+.supplier-nav .muted { color: #6b7280; }
+</style>

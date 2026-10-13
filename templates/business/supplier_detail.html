@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:1100px;margin:0 auto;padding:20px">
+
+{% include "business/_supplier_nav.html" %}
+
+<h1>{{ supplier.name }}</h1>
+<p class="muted">
+  {% if supplier.is_active %}Active{% else %}Inactive{% endif %}
+</p>
+
+<p>
+  <a href="{% url 'business:supplier_edit' supplier.pk %}">Edit</a> ·
+  <form method="post" action="{% url 'business:supplier_toggle' supplier.pk %}" style="display:inline"
+        onsubmit="return confirm('{% if supplier.is_active %}Deactivate{% else %}Activate{% endif %} this supplier?');">
+    {% csrf_token %}
+    <button type="submit">{% if supplier.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+  </form>
+</p>
+
+<h2>Contact</h2>
+<table class="det-table">
+  <tr><th>Contact person</th><td>{{ supplier.contact_person|default:"—" }}</td></tr>
+  <tr><th>Phone</th><td>{{ supplier.phone|default:"—" }}</td></tr>
+  <tr><th>Email</th><td>{{ supplier.email|default:"—" }}</td></tr>
+  <tr><th>Address</th><td>{{ supplier.address|default:"—" }}</td></tr>
+  <tr><th>Tax number</th><td>{{ supplier.tax_number|default:"—" }}</td></tr>
+  <tr><th>Notes</th><td>{{ supplier.notes|default:"—" }}</td></tr>
+</table>
+
+<h2>Purchase summary</h2>
+<div class="kpi-grid">
+  <div class="kpi"><strong>{{ total_billed }}</strong><br><span class="muted">Total billed</span></div>
+  <div class="kpi"><strong>{{ total_paid }}</strong><br><span class="muted">Total paid</span></div>
+  <div class="kpi kpi-warn"><strong>{{ total_due }}</strong><br><span class="muted">Outstanding</span></div>
+</div>
+
+<h2>Recent receipts</h2>
+<table class="det-table">
+  <thead><tr><th>Receipt</th><th>Product</th><th>Qty</th><th>Total</th><th>Status</th><th>Recorded by</th><th>When</th></tr></thead>
+  <tbody>
+  {% for r in receipts %}
+    <tr>
+      <td><a href="{% url 'sales:receipt_detail' r.pk %}">{{ r.receipt_number }}</a></td>
+      <td>{{ r.product.name }}</td>
+      <td>{{ r.quantity }} {{ r.unit.abbreviation }}</td>
+      <td>{{ r.total_cost }}</td>
+      <td>{{ r.get_status_display }}</td>
+      <td>{{ r.received_by.username }}</td>
+      <td>{{ r.received_at }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No receipts yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Invoices</h2>
+<table class="det-table">
+  <thead><tr><th>Reference</th><th>Invoice #</th><th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+  <tbody>
+  {% for inv in invoices %}
+    <tr>
+      <td><a href="{% url 'sales:invoice_detail' inv.pk %}">{{ inv.internal_reference }}</a></td>
+      <td>{{ inv.invoice_number|default:"—" }}</td>
+      <td>{{ inv.invoice_date|default:"—" }}</td>
+      <td>{{ inv.computed_total_amount }}</td>
+      <td>{{ inv.amount_paid }}</td>
+      <td>{{ inv.balance_due }}</td>
+      <td>{{ inv.get_payment_status_display }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No invoices yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+</div>
+<style>
+.det-table { width:100%; border-collapse:collapse; margin:12px 0; }
+.det-table th, .det-table td { padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; vertical-align:top; font-size:0.92em; }
+.muted { color:#6b7280; }
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:16px 0; }
+.kpi { padding:14px; background:#f9fafb; border-radius:8px; }
+.kpi-warn { background:#fef3c7; }
+</style>
+{% endblock %}

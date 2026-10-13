@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:1100px;margin:0 auto;padding:20px">
+
+{% include "business/_supplier_nav.html" %}
+
+<h1>Suppliers</h1>
+<p class="muted">Director-only. Every supplier the business buys from.</p>
+
+<form method="get" style="margin-bottom:12px">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search name, contact, phone" style="padding:6px 8px">
+  <select name="status" style="padding:6px 8px">
+    <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+    <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+    <option value="all" {% if status == 'all' %}selected{% endif %}>All</option>
+  </select>
+  <button type="submit">Filter</button>
+  <a href="{% url 'business:supplier_create' %}" style="margin-left:12px">+ Add supplier</a>
+</form>
+
+<table class="sup-table">
+  <thead>
+    <tr>
+      <th>Name</th><th>Contact</th><th>Phone</th><th>Email</th>
+      <th>Receipts</th><th>Invoices</th><th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for s in suppliers %}
+    <tr>
+      <td><a href="{% url 'business:supplier_detail' s.pk %}">{{ s.name }}</a></td>
+      <td>{{ s.contact_person|default:"—" }}</td>
+      <td>{{ s.phone|default:"—" }}</td>
+      <td>{{ s.email|default:"—" }}</td>
+      <td>{{ s.receipt_count }}</td>
+      <td>{{ s.invoice_count }}</td>
+      <td>{% if s.is_active %}Active{% else %}Inactive{% endif %}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="7" class="muted">No suppliers yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+</div>
+<style>
+.sup-table { width:100%; border-collapse:collapse; margin:12px 0; }
+.sup-table th, .sup-table td { padding:8px 10px; border-bottom:1px solid #e5e7eb; text-align:left; }
+.muted { color:#6b7280; }
+</style>
+{% endblock %}

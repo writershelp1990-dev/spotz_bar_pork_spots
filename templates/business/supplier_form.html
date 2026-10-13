@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:700px;margin:0 auto;padding:20px">
+
+{% include "business/_supplier_nav.html" %}
+
+<h1>{% if mode == "create" %}Add supplier{% else %}Edit {{ supplier.name }}{% endif %}</h1>
+
+<form method="post">
+  {% csrf_token %}
+
+  <p>
+    <label>Name *<br>
+      <input type="text" name="name" required style="width:100%"
+             value="{{ supplier.name|default:'' }}">
+    </label>
+  </p>
+  <p>
+    <label>Contact person<br>
+      <input type="text" name="contact_person" style="width:100%"
+             value="{{ supplier.contact_person|default:'' }}">
+    </label>
+  </p>
+  <p>
+    <label>Phone<br>
+      <input type="text" name="phone" style="width:100%"
+             value="{{ supplier.phone|default:'' }}">
+    </label>
+  </p>
+  <p>
+    <label>Email<br>
+      <input type="email" name="email" style="width:100%"
+             value="{{ supplier.email|default:'' }}">
+    </label>
+  </p>
+  <p>
+    <label>Address<br>
+      <textarea name="address" rows="3" style="width:100%">{{ supplier.address|default:'' }}</textarea>
+    </label>
+  </p>
+  <p>
+    <label>Tax number<br>
+      <input type="text" name="tax_number" style="width:100%"
+             value="{{ supplier.tax_number|default:'' }}">
+    </label>
+  </p>
+  <p>
+    <label>Notes<br>
+      <textarea name="notes" rows="3" style="width:100%">{{ supplier.notes|default:'' }}</textarea>
+    </label>
+  </p>
+
+  <button type="submit">Save</button>
+  <a href="{% url 'business:supplier_list' %}">Cancel</a>
+</form>
+
+</div>
+{% endblock %}
