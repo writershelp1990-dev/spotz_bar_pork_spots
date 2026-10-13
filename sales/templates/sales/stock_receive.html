@@ -45,7 +45,7 @@
 
   <p>
     <label>Supplier<br>{{ form.supplier }}</label>
-    <span class="muted small">{{ form.supplier.help_text }}</span>
+    <span class="muted small">If the supplier isn't listed, <a href="/business/suppliers/new/" target="_blank">add them here</a> first.</span>
     {% if form.supplier.errors %}<span class="field-error">{{ form.supplier.errors }}</span>{% endif %}
   </p>
 

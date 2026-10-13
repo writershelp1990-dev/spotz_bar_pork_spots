@@ -147,8 +147,7 @@ class ReceiptForm(forms.Form):
     )
     supplier = forms.ModelChoiceField(
         queryset=None,  # set in __init__
-        help_text="If the supplier isn't listed, add them under "
-                  "Management \u2192 Suppliers first.",
+        help_text="Add new suppliers first.",
     )
     invoice_number = forms.CharField(
         max_length=80, required=False,
