@@ -169,3 +169,14 @@ stock_discovery_*/
 stock_stage*/
 stock_*_*/
 sales_models_*/
+
+# Development artifacts and fix-script backups
+sales_views_*/
+sales_stock_tpl_*/
+sales_tests_*/
+sales_services_*/
+config_urls_*/
+config_settings_*/
+base_html_*/
+base_html_backup_*
+*_html_backup_*

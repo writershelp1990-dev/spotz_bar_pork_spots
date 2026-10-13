@@ -444,8 +444,41 @@ def stock_home(request):
             "zero_count": sum(1 for row in rows if row["is_zero"]),
         })
 
+    # --- Restocking alerts (Director-visible low-stock summary) ---
+    from sales.models import StockAlertRule
+    restock_alerts = []
+    rules_qs = (
+        StockAlertRule.objects
+        .filter(is_active=True)
+        .select_related(
+            "product", "operating_point",
+            "product__selling_unit", "product__category",
+        )
+    )
+    for rule in rules_qs:
+        bal = (
+            StockBalance.objects
+            .filter(product=rule.product, operating_point=rule.operating_point)
+            .values_list("quantity", flat=True)
+            .first()
+        )
+        bal = bal if bal is not None else 0
+        if bal <= rule.minimum_quantity:
+            restock_alerts.append({
+                "product": rule.product,
+                "operating_point": rule.operating_point,
+                "balance": bal,
+                "minimum": rule.minimum_quantity,
+                "target": rule.target_quantity,
+                "shortfall": max(rule.target_quantity - bal, 0),
+            })
+    restock_alerts.sort(
+        key=lambda r: (r["operating_point"].code, r["product"].name)
+    )
+
     return render(request, "sales/stock.html", {
         "inventory_sections": inventory_sections,
+        "restock_alerts": restock_alerts,
     })
 
 @login_required

@@ -1,4 +1,4 @@
-﻿{% extends "sales/base_sales.html" %}
+{% extends "sales/base_sales.html" %}
 {% block sales_content %}
 <style>
 .spotz-inventory-design { max-width:100%; color:#19271f; padding-bottom:28px; }
@@ -32,6 +32,47 @@
 
 <div class="spotz-inventory-design">
     <h1>Inventory by operating point</h1>
+
+{% if restock_alerts %}
+<div style="padding:16px 18px;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;margin:16px 0">
+  <h2 style="margin:0 0 8px 0;color:#92400e">Restocking needed ({{ restock_alerts|length }})</h2>
+  <p class="muted small" style="margin:0 0 10px 0">
+    These products are at or below their configured minimum stock level.
+  </p>
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="text-align:left;border-bottom:1px solid #fcd34d">
+        <th style="padding:6px 8px">Product</th>
+        <th style="padding:6px 8px">Location</th>
+        <th style="padding:6px 8px">In stock</th>
+        <th style="padding:6px 8px">Minimum</th>
+        <th style="padding:6px 8px">Target</th>
+        <th style="padding:6px 8px">Suggested replenishment</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in restock_alerts %}
+      <tr style="border-bottom:1px solid #fde68a">
+        <td style="padding:6px 8px">
+          <strong>{{ r.product.display_name }}</strong>
+          {% if r.product.code %}<div class="muted small">SKU {{ r.product.code }}</div>{% endif %}
+        </td>
+        <td style="padding:6px 8px">{{ r.operating_point.code }}</td>
+        <td style="padding:6px 8px"><strong>{{ r.balance }}</strong> {{ r.product.selling_unit.abbreviation }}</td>
+        <td style="padding:6px 8px">{{ r.minimum }} {{ r.product.selling_unit.abbreviation }}</td>
+        <td style="padding:6px 8px">{{ r.target }} {{ r.product.selling_unit.abbreviation }}</td>
+        <td style="padding:6px 8px"><strong>{{ r.shortfall }} {{ r.product.selling_unit.abbreviation }}</strong></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted small" style="margin:10px 0 0 0">
+    Manage minimum and target thresholds on the
+    <a href="/sales/stock/alert-rules/">Low-Stock Rules</a> page.
+  </p>
+</div>
+{% endif %}
+
     <p class="inventory-intro">Review every active product at each location, including items with no stock recorded yet.</p>
     <div class="inventory-actions">
         <a href="{% url 'sales:stock_receive' %}">+ Receive stock</a>
