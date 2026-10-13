@@ -515,6 +515,7 @@ from sales.models import (
     SaleItem as _pd_SaleItem,
 )
 from accounts.models import OperatingPoint as _pd_OperatingPoint
+from business.business_day_models import PointDay as _pd_PointDay
 
 
 @login_required
