@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from business import views as business_views
 
 app_name = "stock"
 
@@ -31,4 +32,6 @@ urlpatterns = [
     path("transfers/<int:pk>/recipient-reject/", views.transfer_recipient_reject, name="transfer_recipient_reject"),
     path("api/pending-transfers/", views.api_pending_transfers, name="api_pending_transfers"),
     path("points/<str:code>/", views.point_detail, name="point_detail"),
+    path("points/<str:code>/open/",  business_views.point_open,  name="point_open"),
+    path("points/<str:code>/close/", business_views.point_close, name="point_close"),
 ]

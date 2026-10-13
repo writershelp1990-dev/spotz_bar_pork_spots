@@ -217,3 +217,8 @@ transfer_ack_*/
 cleanup_*/
 .bak_*
 *.bak_*
+
+auto_deploy_*/
+
+pointday_*/
+auto_deploy_*/

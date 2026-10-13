@@ -211,3 +211,72 @@ class StaffDeployment(models.Model):
             f"{self.business_day.business_date} "
             f"{self.start_time:%H:%M}-{self.end_time:%H:%M}"
         )
+
+class PointDay(models.Model):
+    """Per-point open/close state within a global BusinessDay.
+
+    A BusinessDay is the container; each PointDay is one point's open/close
+    state inside it. A point opens when its staff arrive, closes when they
+    leave. When the last open PointDay for a business day closes, the global
+    BusinessDay auto-closes.
+    """
+
+    business_day = models.ForeignKey(
+        BusinessDay,
+        on_delete=models.PROTECT,
+        related_name="point_days",
+    )
+    operating_point = models.ForeignKey(
+        "accounts.OperatingPoint",
+        on_delete=models.PROTECT,
+        related_name="point_days",
+    )
+
+    opened_at = models.DateTimeField()
+    opened_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="point_days_opened",
+    )
+
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="point_days_closed",
+        null=True,
+        blank=True,
+    )
+
+    reopened_count = models.PositiveIntegerField(default=0)
+    notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-opened_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business_day", "operating_point"],
+                name="unique_point_day_per_day",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["operating_point", "business_day"],
+                name="pointday_point_day_idx",
+            ),
+            models.Index(
+                fields=["business_day", "closed_at"],
+                name="pointday_day_closed_idx",
+            ),
+        ]
+
+    @property
+    def is_open(self):
+        return self.closed_at is None
+
+    def __str__(self):
+        state = "OPEN" if self.is_open else "CLOSED"
+        return f"{self.operating_point.code} {self.business_day.business_date} ({state})"

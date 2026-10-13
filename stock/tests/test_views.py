@@ -371,19 +371,39 @@ class PointDetailViewTests(ViewTestBase):
         self.client.force_login(self.director)
         r = self.client.get(reverse("stock:point_detail", args=["KITCHEN"]))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "READY TO START")
+        self.assertContains(r, "READY TO OPEN")
 
-    def test_open_business_day_shows_open_pill(self):
+    def test_open_global_day_but_point_not_opened_shows_open_button(self):
+        # A global day exists, but KITCHEN's PointDay is not open yet.
         from business.business_day_models import BusinessDay
         from django.utils import timezone
         BusinessDay.objects.create(
-            business_date=timezone.now().date(),
+            business_date=timezone.localdate(),
             status=BusinessDay.Status.OPEN,
             actual_opened_at=timezone.now(),
         )
         self.client.force_login(self.director)
         r = self.client.get(reverse("stock:point_detail", args=["KITCHEN"]))
-        self.assertContains(r, "BUSINESS DAY OPEN")
+        # Page shows READY TO OPEN — the shift at KITCHEN hasn't started.
+        self.assertContains(r, "READY TO OPEN")
+
+    def test_open_point_day_shows_open_pill(self):
+        # Open the global day AND the KITCHEN PointDay.
+        from business.business_day_models import BusinessDay
+        from business.services import open_point
+        from django.utils import timezone
+        from accounts.models import OperatingPoint
+        day = BusinessDay.objects.create(
+            business_date=timezone.localdate(),
+            status=BusinessDay.Status.OPEN,
+            actual_opened_at=timezone.now(),
+        )
+        kitchen = OperatingPoint.objects.get(code__iexact="KITCHEN")
+        open_point(user=self.director, point=kitchen)
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("stock:point_detail", args=["KITCHEN"]))
+        self.assertContains(r, "KITCHEN OPEN")
+        self.assertContains(r, "Close KITCHEN")
 
     def test_low_stock_item_is_listed(self):
         from sales.models import StockAlertRule

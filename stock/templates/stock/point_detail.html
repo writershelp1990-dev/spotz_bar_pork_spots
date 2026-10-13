@@ -9,15 +9,34 @@
     {% if point.description %}<p class="muted small" style="margin:4px 0 0 0">{{ point.description }}</p>{% endif %}
   </div>
   <div style="text-align:right">
-    {% if day_state == "OPEN" %}
-      <span class="badge" style="background:#dcfce7;font-weight:600">BUSINESS DAY OPEN</span>
-      <div class="muted small" style="margin-top:4px">{{ day_date }} &middot; opened {{ day_timestamp|date:"Y-m-d H:i" }}</div>
+    {% if point_day_state == "OPEN" %}
+      <span class="badge" style="background:#dcfce7;font-weight:600">{{ point.code }} OPEN</span>
+      {% if day_date %}<div class="muted small" style="margin-top:4px">{{ day_date }} &middot; since {{ day_timestamp|date:"Y-m-d H:i" }}</div>{% endif %}
+      <form method="post" action="{% url 'stock:point_close' point.code %}" style="display:inline-block;margin-top:8px">
+        {% csrf_token %}
+        <button type="submit" style="padding:6px 14px;border:0;border-radius:6px;background:#dc2626;color:#fff;font-weight:600;cursor:pointer">Close {{ point.code }}</button>
+      </form>
     {% elif day_state == "CLOSED" %}
-      <span class="badge" style="background:#fee2e2;font-weight:600">BUSINESS DAY CLOSED</span>
+      <span class="badge" style="background:#fef3c7;font-weight:600">BUSINESS DAY CLOSED</span>
       <div class="muted small" style="margin-top:4px">{{ day_date }} &middot; closed {{ day_timestamp|date:"Y-m-d H:i" }}</div>
+      <form method="post" action="{% url 'stock:point_open' point.code %}" style="display:inline-block;margin-top:8px">
+        {% csrf_token %}
+        <button type="submit" style="padding:6px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">Start a new day at {{ point.code }}</button>
+      </form>
+    {% elif point_day_state == "CLOSED" %}
+      <span class="badge" style="background:#fee2e2;font-weight:600">{{ point.code }} CLOSED</span>
+      <div class="muted small" style="margin-top:4px">The day is still open at other points.</div>
+      <form method="post" action="{% url 'stock:point_open' point.code %}" style="display:inline-block;margin-top:8px">
+        {% csrf_token %}
+        <button type="submit" style="padding:6px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">Reopen {{ point.code }}</button>
+      </form>
     {% else %}
-      <span class="badge" style="background:#e5e7eb;font-weight:600">READY TO START</span>
-      <div class="muted small" style="margin-top:4px">No business day yet</div>
+      <span class="badge" style="background:#e5e7eb;font-weight:600">READY TO OPEN</span>
+      <div class="muted small" style="margin-top:4px">No shift open at {{ point.code }} yet.</div>
+      <form method="post" action="{% url 'stock:point_open' point.code %}" style="display:inline-block;margin-top:8px">
+        {% csrf_token %}
+        <button type="submit" style="padding:6px 14px;border:0;border-radius:6px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer">Open {{ point.code }}</button>
+      </form>
     {% endif %}
   </div>
 </div>

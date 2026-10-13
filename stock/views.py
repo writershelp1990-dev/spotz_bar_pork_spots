@@ -515,6 +515,7 @@ from sales.models import (
     SaleItem as _pd_SaleItem,
 )
 from accounts.models import OperatingPoint as _pd_OperatingPoint
+from business.business_day_models import PointDay as _pd_PointDay
 
 
 @login_required
@@ -651,5 +652,12 @@ def point_detail(request, code):
         "balances": balances,
         "low_stock": low_stock,
         "active_alerts": active_alerts,
-        "recent_movements": recent_movements,
+                "point_day_state": (
+            "OPEN" if (_pd_PointDay.objects.filter(
+                business_day=open_day, operating_point=point,
+                closed_at__isnull=True).exists())
+            else ("CLOSED" if (_pd_PointDay.objects.filter(
+                business_day=open_day, operating_point=point).exists())
+            else None)
+        ),        "recent_movements": recent_movements,
     })
