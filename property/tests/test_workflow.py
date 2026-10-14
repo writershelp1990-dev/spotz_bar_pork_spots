@@ -396,3 +396,53 @@ class RuleARelocationTests(WorkflowBase):
                 "expected_transfer_date": None, "notes": "",
             })
         self.assertEqual(relocation.receiving_attendant, self.director)
+
+
+class MovementReportTests(TestCase):
+    """Movement report: permissions and rendering."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        from accounts.models import RoleDefinition
+        User = get_user_model()
+        dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        bar_role, _ = RoleDefinition.objects.get_or_create(
+            code="BAR_ATTENDANT", defaults={"name": "Bar Attendant"})
+        cls.director = User.objects.create_user(
+            username="mr_dir", password="pw", role="DIRECTOR",
+            role_definition=dir_role, is_active=True, is_active_staff=True)
+        cls.staff = User.objects.create_user(
+            username="mr_staff", password="pw", role="BAR_ATTENDANT",
+            role_definition=bar_role, is_active=True, is_active_staff=True)
+
+    def test_director_sees_page(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("property:movement_report"))
+        self.assertEqual(r.status_code, 200)
+
+    def test_non_director_forbidden(self):
+        from django.urls import reverse
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse("property:movement_report"))
+        self.assertEqual(r.status_code, 403)
+
+    def test_anonymous_redirects(self):
+        from django.urls import reverse
+        r = self.client.get(reverse("property:movement_report"))
+        self.assertEqual(r.status_code, 302)
+
+    def test_empty_state(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("property:movement_report"))
+        self.assertContains(r, "No asset movements")
+
+    def test_hub_link_present(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:reports_home"))
+        body = r.content.decode()
+        self.assertIn("Asset Movements", body)

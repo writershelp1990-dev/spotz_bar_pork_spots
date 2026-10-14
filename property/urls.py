@@ -43,4 +43,6 @@ urlpatterns = [
     path("staff-access/", views.staff_access, name="staff_access"),
     path("staff-access/update/", views.staff_access_update, name="staff_access_update"),    path("director/reports.pdf", views.reports_pdf, name="reports_pdf"),
     path("director/reports.xlsx", views.reports_xlsx, name="reports_xlsx"),    path("api/pending/", views.api_pending_property, name="api_pending"),
-    path("api/ack/<str:key>/", views.api_ack_property, name="api_ack"),]
+    path("api/ack/<str:key>/", views.api_ack_property, name="api_ack"),
+    path("director/reports/movements/", views.movement_report, name="movement_report"),
+]

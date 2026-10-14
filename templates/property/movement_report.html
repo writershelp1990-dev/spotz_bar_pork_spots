@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="spotz-page">
+  <div class="spotz-page-header">
+    <div>
+      <h1>Asset Movements</h1>
+      <p>Recent asset relocations across physical areas.</p>
+    </div>
+    <a href="{% url 'sales:reports_home' %}" class="spotz-btn">Back to Reports</a>
+  </div>
+
+  <div class="spotz-panel">
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <label>Period:
+        <select name="days">
+          <option value="7"   {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+          <option value="14"  {% if days == 14 %}selected{% endif %}>Last 14 days</option>
+          <option value="30"  {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+          <option value="90"  {% if days == 90 %}selected{% endif %}>Last 90 days</option>
+          <option value="365" {% if days == 365 %}selected{% endif %}>Last year</option>
+        </select>
+      </label>
+      <label>Status:
+        <select name="status">
+          <option value="">All statuses</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">Apply</button>
+    </form>
+  </div>
+
+  <div class="spotz-panel">
+    <p class="muted small">{{ entry_count }} movement{{ entry_count|pluralize }} in this period.</p>
+
+    {% if entries %}
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="border-bottom:2px solid #e5e7eb;text-align:left">
+            <th style="padding:8px">When</th>
+            <th style="padding:8px">Asset</th>
+            <th style="padding:8px">From</th>
+            <th style="padding:8px">To</th>
+            <th style="padding:8px">Status</th>
+            <th style="padding:8px">Recipient</th>
+            <th style="padding:8px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+            <tr style="border-bottom:1px solid #f3f4f6">
+              <td style="padding:8px" class="small muted">{{ e.submitted_at|date:"Y-m-d H:i" }}</td>
+              <td style="padding:8px">{{ e.asset.asset_number }} — {{ e.asset.name }}</td>
+              <td style="padding:8px">{{ e.origin_area.code }}</td>
+              <td style="padding:8px">{{ e.destination_area.code }}</td>
+              <td style="padding:8px"><span class="badge">{{ e.get_status_display }}</span></td>
+              <td style="padding:8px" class="small">{{ e.receiving_attendant.get_full_name|default:e.receiving_attendant.username }}</td>
+              <td style="padding:8px"><a href="{% url 'property:relocation_detail' e.pk %}">View</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if entry_count >= 500 %}
+        <p class="muted small">Showing the most recent 500 movements. Narrow the period to see more.</p>
+      {% endif %}
+    {% else %}
+      <p class="muted">No asset movements in this period.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

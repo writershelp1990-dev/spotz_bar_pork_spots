@@ -911,3 +911,50 @@ def api_ack_property(request, key):
         lst.append(key)
     cache.set(f"property_dismissed_{request.user.pk}", lst, timeout=60 * 60 * 24 * 7)
     return JsonResponse({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Movement report
+# ---------------------------------------------------------------------------
+from datetime import timedelta as _pm_td
+
+
+@login_required
+@require_director
+def movement_report(request):
+    try:
+        days = int(request.GET.get("days", 30) or 30)
+    except (TypeError, ValueError):
+        days = 30
+    days = max(1, min(days, 365))
+
+    status_filter = (request.GET.get("status") or "").strip().upper()
+
+    since = timezone.now() - _pm_td(days=days)
+
+    qs = (AssetRelocation.objects
+          .filter(submitted_at__gte=since)
+          .select_related(
+              "asset", "origin_area", "destination_area",
+              "requested_by", "receiving_attendant",
+          )
+          .order_by("-submitted_at"))
+
+    if status_filter:
+        qs = qs.filter(status=status_filter)
+
+    entries = list(qs[:500])
+
+    # --- summary counts by status
+    summary = {}
+    for e in entries:
+        summary[e.status] = summary.get(e.status, 0) + 1
+
+    return render(request, "property/movement_report.html", {
+        "entries": entries,
+        "entry_count": len(entries),
+        "days": days,
+        "status_filter": status_filter,
+        "status_choices": AssetRelocation.Status.choices,
+        "summary": summary,
+    })
