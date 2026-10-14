@@ -110,6 +110,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.utils import timezone as _pd_tz2
 from business.business_day_models import PointDay as _pd_PointDay
 from business.permissions import user_can_open_point as _pd_can_open
+from business.business_day_services import get_scheduled_business_day_times as _pd_sched
 
 
 @transaction.atomic
@@ -150,11 +151,14 @@ def open_point(*, user, point, business_day=None):
         business_day = BusinessDay.objects.filter(
             business_date=today).first()
         if business_day is None:
+            _sched = _pd_sched(today)
             business_day = BusinessDay.objects.create(
                 business_date=today,
                 status=BusinessDay.Status.OPEN,
                 actual_opened_at=_pd_tz2.now(),
                 opened_by=user,
+                scheduled_open_time=_sched["business_open"],
+                scheduled_close_time=_sched["close"],
             )
         else:
             # Reopen a same-date closed day rather than creating a new one.
@@ -163,9 +167,13 @@ def open_point(*, user, point, business_day=None):
                 business_day.actual_opened_at = _pd_tz2.now()
             business_day.reopened_at = _pd_tz2.now()
             business_day.reopened_by = user
+            _sched = _pd_sched(business_day.business_date)
+            business_day.scheduled_open_time = _sched["business_open"]
+            business_day.scheduled_close_time = _sched["close"]
             business_day.save(update_fields=[
                 "status", "actual_opened_at", "reopened_at",
-                "reopened_by", "updated_at"])
+                "reopened_by", "scheduled_open_time",
+                "scheduled_close_time", "updated_at"])
 
     pd = _pd_PointDay.objects.select_for_update().filter(
         business_day=business_day,
