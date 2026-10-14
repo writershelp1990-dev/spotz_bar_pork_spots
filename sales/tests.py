@@ -1365,3 +1365,51 @@ class InvoicePaymentViewsTests(ReceivingWorkflowBase):
         self.client.force_login(self.bar_user)
         r = self.client.get(reverse("sales:payments_made"))
         self.assertEqual(r.status_code, 403)
+
+
+class ReportsHomeTests(TestCase):
+    """Reports hub: permissions and links."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        from accounts.models import RoleDefinition
+        User = get_user_model()
+        dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        bar_role, _ = RoleDefinition.objects.get_or_create(
+            code="BAR_ATTENDANT", defaults={"name": "Bar Attendant"})
+        cls.director = User.objects.create_user(
+            username="rh_dir", password="pw", role="DIRECTOR",
+            role_definition=dir_role, is_active=True, is_active_staff=True)
+        cls.staff = User.objects.create_user(
+            username="rh_staff", password="pw", role="BAR_ATTENDANT",
+            role_definition=bar_role, is_active=True, is_active_staff=True)
+
+    def test_director_sees_page(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:reports_home"))
+        self.assertEqual(r.status_code, 200)
+
+    def test_non_director_forbidden(self):
+        from django.urls import reverse
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse("sales:reports_home"))
+        self.assertEqual(r.status_code, 403)
+
+    def test_anonymous_redirects(self):
+        from django.urls import reverse
+        r = self.client.get(reverse("sales:reports_home"))
+        self.assertEqual(r.status_code, 302)
+
+    def test_links_present(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:reports_home"))
+        body = r.content.decode()
+        self.assertIn("Profit &amp; Loss", body)
+        self.assertIn("Outstanding Payables", body)
+        self.assertIn("Payments Made", body)
+        self.assertIn("Daily Closing", body)
+        self.assertIn("Wastage", body)

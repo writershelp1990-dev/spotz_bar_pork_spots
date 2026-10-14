@@ -1376,3 +1376,12 @@ def pnl_report(request):
         "date_from": date_from,
         "date_to": date_to,
     })
+
+# ---------------------------------------------------------------------------
+# Reports hub
+# ---------------------------------------------------------------------------
+@login_required
+def reports_home(request):
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Director authorization required.")
+    return render(request, "sales/reports_home.html")

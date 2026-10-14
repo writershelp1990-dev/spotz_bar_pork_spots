@@ -45,4 +45,5 @@ urlpatterns = [
     path("reports/outstanding-payables/", views.outstanding_payables, name="outstanding_payables"),
     path("reports/payments-made/", views.payments_made, name="payments_made"),
     path("reports/pnl/", views.pnl_report, name="pnl_report"),
+    path("reports/", views.reports_home, name="reports_home"),
 ]

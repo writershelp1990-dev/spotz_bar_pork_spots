@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="spotz-page">
+  <div class="spotz-page-header">
+    <div>
+      <h1>Reports</h1>
+      <p>Business reports across sales, finance, and operations.</p>
+    </div>
+  </div>
+
+  <div class="spotz-panel">
+    <h2>Sales &amp; Finance</h2>
+    <ul>
+      <li><a href="{% url 'sales:pnl_report' %}">Profit &amp; Loss</a></li>
+      <li><a href="{% url 'sales:outstanding_payables' %}">Outstanding Payables</a></li>
+      <li><a href="{% url 'sales:payments_made' %}">Payments Made</a></li>
+    </ul>
+  </div>
+
+  <div class="spotz-panel">
+    <h2>Operations</h2>
+    <ul>
+      <li><a href="{% url 'business_day:closing' %}">Daily Closing</a></li>
+      <li><a href="{% url 'stock:wastage_list' %}">Wastage</a></li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

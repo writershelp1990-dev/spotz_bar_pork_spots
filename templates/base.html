@@ -162,10 +162,12 @@
 
             <div class="nav-section">INSIGHTS</div>
 
-            <a href="#" aria-disabled="true" title="Feature not implemented yet" class="feature-unavailable">
+            {% if user.is_director %}
+            <a href="/sales/reports/">
                 <span class="nav-icon">↗</span>
                 <span>Reports</span>
             </a>
+            {% endif %}
 
             <a href="/sales/reports/pnl/">
                 <span class="nav-icon">◎</span>
