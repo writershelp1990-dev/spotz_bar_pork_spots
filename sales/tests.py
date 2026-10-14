@@ -1511,3 +1511,108 @@ class DailySalesReportTests(TestCase):
         # BAR still shows 3000, but KITCHEN column is gone
         self.assertIn("3000.00", body)
         self.assertNotIn("500.00", body)
+
+class SalesProjectionTests(TestCase):
+    """SalesProjection uniqueness + ProjectionConfig singleton behavior."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        from accounts.models import OperatingPoint, RoleDefinition
+        User = get_user_model()
+        dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        cls.director = User.objects.create_user(
+            username="proj_dir", password="pw", role="DIRECTOR",
+            role_definition=dir_role, is_active=True, is_active_staff=True)
+        cls.bar, _ = OperatingPoint.objects.get_or_create(
+            code="BAR", defaults={"name": "Bar", "is_active": True})
+
+    def test_projection_unique_per_date_and_point(self):
+        from decimal import Decimal
+        from datetime import date
+        from django.db import IntegrityError
+        from .models import SalesProjection
+
+        SalesProjection.objects.create(
+            date=date(2026, 10, 20),
+            operating_point=self.bar,
+            projected_amount=Decimal("50000.00"),
+        )
+        with self.assertRaises(IntegrityError):
+            SalesProjection.objects.create(
+                date=date(2026, 10, 20),
+                operating_point=self.bar,
+                projected_amount=Decimal("55000.00"),
+            )
+
+    def test_projection_different_dates_allowed(self):
+        from decimal import Decimal
+        from datetime import date
+        from .models import SalesProjection
+
+        SalesProjection.objects.create(
+            date=date(2026, 10, 20), operating_point=self.bar,
+            projected_amount=Decimal("50000.00"))
+        SalesProjection.objects.create(
+            date=date(2026, 10, 21), operating_point=self.bar,
+            projected_amount=Decimal("48000.00"))
+        self.assertEqual(
+            SalesProjection.objects.filter(operating_point=self.bar).count(), 2)
+
+    def test_config_get_solo_creates_once(self):
+        from .models import ProjectionConfig
+        ProjectionConfig.objects.all().delete()
+        a = ProjectionConfig.get_solo()
+        b = ProjectionConfig.get_solo()
+        self.assertEqual(a.pk, b.pk)
+        self.assertEqual(ProjectionConfig.objects.count(), 1)
+
+    def test_config_save_forces_pk_1(self):
+        from .models import ProjectionConfig
+        ProjectionConfig.objects.all().delete()
+        c = ProjectionConfig(history_days=10)
+        c.pk = 42
+        c.save()
+        self.assertEqual(c.pk, 1)
+        self.assertEqual(ProjectionConfig.objects.count(), 1)
+
+    def test_config_defaults(self):
+        from .models import ProjectionConfig
+        ProjectionConfig.objects.all().delete()
+        c = ProjectionConfig.get_solo()
+        self.assertEqual(c.history_days, 6)
+        self.assertTrue(c.outlier_trim)
+        self.assertTrue(c.holiday_adjustment)
+        self.assertFalse(c.trend_adjustment)
+
+    def test_source_data_json_roundtrip(self):
+        from decimal import Decimal
+        from datetime import date
+        from .models import SalesProjection
+
+        payload = [
+            {"date": "2026-10-13", "amount": "48000.00"},
+            {"date": "2026-10-06", "amount": "51000.00"},
+        ]
+        sp = SalesProjection.objects.create(
+            date=date(2026, 10, 20),
+            operating_point=self.bar,
+            projected_amount=Decimal("49500.00"),
+            source_days=2,
+            source_data=payload,
+        )
+        sp.refresh_from_db()
+        self.assertEqual(sp.source_data, payload)
+
+    def test_override_flag_defaults_false(self):
+        from decimal import Decimal
+        from datetime import date
+        from .models import SalesProjection
+
+        sp = SalesProjection.objects.create(
+            date=date(2026, 11, 1),
+            operating_point=self.bar,
+            projected_amount=Decimal("60000.00"),
+        )
+        self.assertFalse(sp.is_override)

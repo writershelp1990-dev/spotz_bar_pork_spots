@@ -654,3 +654,85 @@ class InvoicePayment(models.Model):
 
     def __str__(self):
         return f"{self.amount} to {self.invoice.internal_reference} on {self.paid_at}"
+
+
+# ---------------------------------------------------------------------------
+# Sales projections
+# ---------------------------------------------------------------------------
+class SalesProjection(models.Model):
+    """A computed or manually-set expectation for one point on one date.
+
+    Rows with is_override=False are (re)computed by the
+    compute_daily_projections management command. Rows with
+    is_override=True are manually set by a Director and are never
+    overwritten by the command.
+    """
+    date = models.DateField(db_index=True)
+    operating_point = models.ForeignKey(
+        "accounts.OperatingPoint",
+        on_delete=models.CASCADE,
+        related_name="sales_projections",
+    )
+    projected_amount = models.DecimalField(
+        max_digits=14, decimal_places=2,
+    )
+    is_override = models.BooleanField(default=False)
+    computed_at = models.DateTimeField(auto_now=True)
+    source_days = models.PositiveIntegerField(default=0)
+    source_data = models.JSONField(default=list, blank=True)
+    notes = models.CharField(max_length=200, blank=True)
+    entered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="projections_entered",
+    )
+
+    class Meta:
+        unique_together = ("date", "operating_point")
+        ordering = ["-date", "operating_point__code"]
+        indexes = [
+            models.Index(fields=["date", "operating_point"],
+                         name="proj_date_point_idx"),
+            models.Index(fields=["operating_point", "-date"],
+                         name="proj_point_date_idx"),
+        ]
+        verbose_name = "Sales projection"
+        verbose_name_plural = "Sales projections"
+
+    def __str__(self):
+        marker = " (override)" if self.is_override else ""
+        return f"{self.date} {self.operating_point.code}: {self.projected_amount}{marker}"
+
+
+class ProjectionConfig(models.Model):
+    """Singleton config for the projection algorithm. One row only.
+
+    The compute command reads from this row. Edit via Django admin
+    or a future Director-facing settings page.
+    """
+    history_days = models.PositiveIntegerField(default=6)
+    outlier_trim = models.BooleanField(default=True)
+    holiday_adjustment = models.BooleanField(default=True)
+    trend_adjustment = models.BooleanField(default=False)
+    cold_start_fallback = models.DecimalField(
+        max_digits=14, decimal_places=2, default=0,
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Projection config"
+        verbose_name_plural = "Projection config"
+
+    def __str__(self):
+        return f"ProjectionConfig (history={self.history_days}d, cold_start={self.cold_start_fallback})"
+
+    def save(self, *args, **kwargs):
+        # Enforce singleton: force pk=1
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
