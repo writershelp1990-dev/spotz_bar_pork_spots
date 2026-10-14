@@ -1,4 +1,4 @@
-﻿# Default: let Git decide per file type
+# Default: let Git decide per file type
 * text=auto
 
 # Explicit LF for source and config (portable across OS)
