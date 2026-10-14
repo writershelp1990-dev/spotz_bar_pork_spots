@@ -1,5 +1,7 @@
+from decimal import Decimal
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
+from django.core.validators import MinValueValidator
 from django.db import models
 
 
@@ -249,6 +251,29 @@ class Employee(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # --- Salary & payroll (see expenses app for payroll integration) ---
+    class PayFrequency(models.TextChoices):
+        MONTHLY = "MONTHLY", "Monthly"
+        WEEKLY = "WEEKLY", "Weekly"
+        DAILY = "DAILY", "Daily"
+
+    salary_amount = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        null=True, blank=True,
+        validators=[MinValueValidator(Decimal("0"))],
+        help_text="Gross salary per the pay frequency. "
+                  "Leave blank for casual / unsalaried staff.",
+    )
+    pay_frequency = models.CharField(
+        max_length=10,
+        choices=PayFrequency.choices,
+        blank=True,
+        help_text="How often the salary is paid.",
+    )
+    salary_start_date = models.DateField(
+        null=True, blank=True,
+        help_text="When this salary arrangement started.",
+    )
     class Meta:
         ordering = ["user__last_name", "user__first_name", "user__username"]
     class EmploymentStatus(models.TextChoices):

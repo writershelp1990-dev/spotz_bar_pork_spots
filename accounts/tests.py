@@ -311,3 +311,72 @@ class DeploymentAuthorizationTests(TestCase):
         self.employee.refresh_from_db()
         self.assertEqual(self.employee.operating_point_id, self.current_point.pk)
         self.assertFalse(self.DeploymentHistory.objects.filter(employee=self.employee).exists())
+
+
+class EmployeeSalaryFieldTests(TestCase):
+    """Tests for the salary_amount / pay_frequency / salary_start_date fields."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        from accounts.models import RoleDefinition
+        User = get_user_model()
+        cls.role, _ = RoleDefinition.objects.get_or_create(
+            code="BAR_ATTENDANT", defaults={"name": "Bar Attendant"})
+        cls.user = User.objects.create_user(
+            username="sal_test", password="pw",
+            role="BAR_ATTENDANT", role_definition=cls.role,
+            is_active=True, is_active_staff=True)
+
+    def test_salary_fields_default_to_null_or_blank(self):
+        from accounts.models import Employee
+        from decimal import Decimal
+        e = Employee.objects.create(user=self.user)
+        self.assertIsNone(e.salary_amount)
+        self.assertEqual(e.pay_frequency, "")
+        self.assertIsNone(e.salary_start_date)
+
+    def test_salary_fields_accept_values(self):
+        from accounts.models import Employee
+        from decimal import Decimal
+        from django.utils import timezone
+        e = Employee.objects.create(
+            user=self.user,
+            salary_amount=Decimal("30000.00"),
+            pay_frequency=Employee.PayFrequency.MONTHLY,
+            salary_start_date=timezone.localdate(),
+        )
+        e.refresh_from_db()
+        self.assertEqual(e.salary_amount, Decimal("30000.00"))
+        self.assertEqual(e.pay_frequency, "MONTHLY")
+        self.assertIsNotNone(e.salary_start_date)
+
+    def test_pay_frequency_choices_are_monthly_weekly_daily(self):
+        from accounts.models import Employee
+        codes = [c[0] for c in Employee.PayFrequency.choices]
+        self.assertIn("MONTHLY", codes)
+        self.assertIn("WEEKLY", codes)
+        self.assertIn("DAILY", codes)
+
+    def test_negative_salary_rejected_by_validation(self):
+        from accounts.models import Employee
+        from decimal import Decimal
+        from django.core.exceptions import ValidationError
+        e = Employee(
+            user=self.user,
+            salary_amount=Decimal("-100.00"),
+            pay_frequency=Employee.PayFrequency.MONTHLY,
+        )
+        with self.assertRaises(ValidationError):
+            e.full_clean()
+
+    def test_weekly_and_daily_frequencies_accepted(self):
+        from accounts.models import Employee
+        from decimal import Decimal
+        e = Employee.objects.create(
+            user=self.user,
+            salary_amount=Decimal("7000.00"),
+            pay_frequency=Employee.PayFrequency.WEEKLY,
+        )
+        e.refresh_from_db()
+        self.assertEqual(e.pay_frequency, "WEEKLY")
