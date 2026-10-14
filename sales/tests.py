@@ -2057,3 +2057,85 @@ class ProjectionOverrideTests(TestCase):
             date=self.target, operating_point=self.bar)
         self.assertTrue(sp.is_override)
         self.assertEqual(sp.projected_amount, Decimal("99999.00"))
+
+class ProjectionBackfillTests(TestCase):
+    """Backfill behaviour of compute_daily_projections."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        from accounts.models import OperatingPoint, RoleDefinition
+        User = get_user_model()
+        dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        cls.director = User.objects.create_user(
+            username="bf_dir", password="pw", role="DIRECTOR",
+            role_definition=dir_role, is_active=True, is_active_staff=True)
+        cls.bar, _ = OperatingPoint.objects.get_or_create(
+            code="BAR", defaults={"name": "Bar", "is_active": True})
+
+    def _run(self, *args):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("compute_daily_projections", *args, stdout=out)
+        return out.getvalue()
+
+    def test_backfill_writes_past_rows(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import SalesProjection
+
+        SalesProjection.objects.all().delete()
+        self._run("--days-ahead", "1", "--days-back", "3", "--point", "BAR")
+
+        today = timezone.localdate()
+        for offset in (-3, -2, -1):
+            target = today + timedelta(days=offset)
+            self.assertTrue(
+                SalesProjection.objects.filter(
+                    date=target, operating_point=self.bar).exists(),
+                msg=f"Expected projection for {target}",
+            )
+
+    def test_backfill_skips_today(self):
+        from django.utils import timezone
+        from .models import SalesProjection
+
+        SalesProjection.objects.all().delete()
+        self._run("--days-ahead", "1", "--days-back", "2", "--point", "BAR")
+        today = timezone.localdate()
+        self.assertFalse(
+            SalesProjection.objects.filter(
+                date=today, operating_point=self.bar).exists())
+
+    def test_backfill_does_not_touch_overrides(self):
+        from decimal import Decimal
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import SalesProjection
+
+        SalesProjection.objects.all().delete()
+        target = timezone.localdate() - timedelta(days=2)
+        SalesProjection.objects.create(
+            date=target, operating_point=self.bar,
+            projected_amount=Decimal("99999.00"),
+            is_override=True,
+        )
+        self._run("--days-ahead", "1", "--days-back", "3", "--point", "BAR")
+        sp = SalesProjection.objects.get(date=target, operating_point=self.bar)
+        self.assertTrue(sp.is_override)
+        self.assertEqual(sp.projected_amount, Decimal("99999.00"))
+
+    def test_days_back_default_is_zero(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import SalesProjection
+
+        SalesProjection.objects.all().delete()
+        # No --days-back flag -> no past rows created
+        self._run("--days-ahead", "2", "--point", "BAR")
+        today = timezone.localdate()
+        past_rows = SalesProjection.objects.filter(
+            operating_point=self.bar, date__lt=today).count()
+        self.assertEqual(past_rows, 0)

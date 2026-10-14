@@ -15,6 +15,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--days-ahead", type=int, default=7,
                             help="How many future days to project (1-30). Default 7.")
+        parser.add_argument("--days-back", type=int, default=0,
+                            help="Also compute for the last N days (0-90). Default 0.")
         parser.add_argument("--point", type=str, default="",
                             help="Only compute for this operating point code.")
         parser.add_argument("--dry-run", action="store_true",
@@ -25,6 +27,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         config = ProjectionConfig.get_solo()
         days_ahead = max(1, min(int(options["days_ahead"]), 30))
+        days_back = max(0, min(int(options.get("days_back", 0) or 0), 90))
         point_code = (options["point"] or "").strip()
         dry_run = options["dry_run"]
         verbose = options["verbose"]
@@ -43,8 +46,10 @@ class Command(BaseCommand):
         skipped = 0
 
         for point in points:
-            for i in range(1, days_ahead + 1):
-                target = today + timedelta(days=i)
+            for offset in range(-days_back, days_ahead + 1):
+                if offset == 0:
+                    continue
+                target = today + timedelta(days=offset)
 
                 existing = SalesProjection.objects.filter(
                     date=target, operating_point=point).first()
@@ -87,7 +92,7 @@ class Command(BaseCommand):
                     self.stdout.write(msg)
 
         if dry_run:
-            total = days_ahead * points.count()
+            total = (days_ahead + days_back) * points.count()
             self.stdout.write(self.style.SUCCESS(
                 "Dry run complete. Would write " + str(total) + " rows."))
         else:
