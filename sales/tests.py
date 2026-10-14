@@ -1616,3 +1616,168 @@ class SalesProjectionTests(TestCase):
             projected_amount=Decimal("60000.00"),
         )
         self.assertFalse(sp.is_override)
+
+class ProjectionAlgorithmTests(TestCase):
+    """Pure-function algorithm tests — no database needed."""
+
+    def test_weighted_mean_single_value(self):
+        from decimal import Decimal
+        from .projections import weighted_mean
+        self.assertEqual(weighted_mean([Decimal("100")]), Decimal("100.00"))
+
+    def test_weighted_mean_weights_recent_higher(self):
+        from decimal import Decimal
+        from .projections import weighted_mean
+        # 4 values, oldest first. Weights [0.15, 0.20, 0.30, 0.35]
+        # 100*0.15 + 200*0.20 + 300*0.30 + 400*0.35 = 15 + 40 + 90 + 140 = 285
+        result = weighted_mean([Decimal("100"), Decimal("200"),
+                                Decimal("300"), Decimal("400")])
+        self.assertEqual(result, Decimal("285.00"))
+
+    def test_weighted_mean_empty(self):
+        from decimal import Decimal
+        from .projections import weighted_mean
+        self.assertEqual(weighted_mean([]), Decimal("0.00"))
+
+    def test_trim_outliers_drops_extremes(self):
+        from decimal import Decimal
+        from .projections import trim_outliers
+        values = [Decimal("100"), Decimal("200"), Decimal("300"), Decimal("10000")]
+        result = trim_outliers(values)
+        self.assertEqual(result, [Decimal("200"), Decimal("300")])
+
+    def test_trim_outliers_no_trim_below_4(self):
+        from decimal import Decimal
+        from .projections import trim_outliers
+        values = [Decimal("100"), Decimal("200"), Decimal("300")]
+        self.assertEqual(trim_outliers(values), values)
+
+
+class ProjectionCommandTests(TestCase):
+    """Integration tests for compute_daily_projections."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+        from datetime import timedelta
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from accounts.models import OperatingPoint, RoleDefinition
+        from business.business_day_models import BusinessDay
+        from .models import Sale
+
+        User = get_user_model()
+        dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        cls.director = User.objects.create_user(
+            username="pc_dir", password="pw", role="DIRECTOR",
+            role_definition=dir_role, is_active=True, is_active_staff=True)
+
+        cls.bar, _ = OperatingPoint.objects.get_or_create(
+            code="BAR", defaults={"name": "Bar", "is_active": True})
+
+        today = timezone.localdate()
+
+        # Seed 6 same-weekday sales at BAR on the previous 6 Tuesdays
+        # (well, on whatever weekday `today + 1` falls on).
+        cls.target_weekday = (today + timedelta(days=1)).weekday()
+        cls.seeded = []
+        for weeks_ago in range(1, 7):
+            # Find a date that is exactly `weeks_ago` weeks before target,
+            # same weekday
+            d = today + timedelta(days=1) - timedelta(weeks=weeks_ago)
+            # make sure it's the same weekday
+            while d.weekday() != cls.target_weekday:
+                d -= timedelta(days=1)
+            day = BusinessDay.objects.create(
+                business_date=d,
+                status=BusinessDay.Status.CLOSED,
+                actual_opened_at=timezone.now() - timedelta(days=weeks_ago*7),
+                actual_closed_at=timezone.now() - timedelta(days=weeks_ago*7) + timedelta(hours=8),
+                opened_by=cls.director,
+                closed_by=cls.director,
+            )
+            amount = Decimal(str(10000 + weeks_ago * 1000))  # 11000, 12000, ..., 16000
+            Sale.objects.create(
+                sale_number="PC-SEED-" + str(weeks_ago),
+                business_day=day, operating_point=cls.bar,
+                cashier=cls.director,
+                payment_method="CASH", total=amount,
+                amount_tendered=amount, payment_status="PAID",
+            )
+            cls.seeded.append(amount)
+
+    def _run(self, *args):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("compute_daily_projections", *args, stdout=out)
+        return out.getvalue()
+
+    def test_command_creates_rows_with_history(self):
+        from .models import SalesProjection
+        SalesProjection.objects.all().delete()
+        self._run("--days-ahead", "1", "--point", "BAR")
+        self.assertTrue(
+            SalesProjection.objects.filter(
+                operating_point=self.bar, is_override=False).exists())
+
+    def test_command_uses_real_history_not_cold_start(self):
+        from .models import SalesProjection
+        SalesProjection.objects.all().delete()
+        self._run("--days-ahead", "1", "--point", "BAR")
+        sp = SalesProjection.objects.filter(
+            operating_point=self.bar, is_override=False).first()
+        self.assertIsNotNone(sp)
+        # 6 same-weekday values seeded -> source_days == 6
+        self.assertEqual(sp.source_days, 6)
+        # Amount should be non-zero (real history used, not fallback)
+        self.assertGreater(sp.projected_amount, 0)
+
+    def test_command_skips_override_rows(self):
+        from decimal import Decimal
+        from datetime import timedelta
+        from django.utils import timezone
+        from .models import SalesProjection, ProjectionConfig
+
+        SalesProjection.objects.all().delete()
+        target = timezone.localdate() + timedelta(days=1)
+        SalesProjection.objects.create(
+            date=target, operating_point=self.bar,
+            projected_amount=Decimal("99999.99"),
+            is_override=True,
+        )
+        self._run("--days-ahead", "1", "--point", "BAR")
+        sp = SalesProjection.objects.get(date=target, operating_point=self.bar)
+        self.assertTrue(sp.is_override)
+        self.assertEqual(sp.projected_amount, Decimal("99999.99"))
+
+    def test_dry_run_writes_nothing(self):
+        from .models import SalesProjection
+        SalesProjection.objects.all().delete()
+        self._run("--days-ahead", "2", "--point", "BAR", "--dry-run")
+        self.assertEqual(SalesProjection.objects.count(), 0)
+
+    def test_point_filter_limits_scope(self):
+        from .models import SalesProjection
+        SalesProjection.objects.all().delete()
+        self._run("--days-ahead", "2", "--point", "BAR")
+        codes = set(SalesProjection.objects.values_list(
+            "operating_point__code", flat=True))
+        self.assertEqual(codes, {"BAR"})
+
+    def test_cold_start_when_no_history(self):
+        from decimal import Decimal
+        from .models import SalesProjection, ProjectionConfig
+        SalesProjection.objects.all().delete()
+        # Point with no sales history at all
+        from accounts.models import OperatingPoint
+        kitchen, _ = OperatingPoint.objects.get_or_create(
+            code="KITCHEN", defaults={"name": "Kitchen", "is_active": True})
+        SalesProjection.objects.filter(operating_point=kitchen).delete()
+        self._run("--days-ahead", "1", "--point", "KITCHEN")
+        sp = SalesProjection.objects.filter(operating_point=kitchen).first()
+        self.assertIsNotNone(sp)
+        # Cold start -> 0 source days, amount = cold_start_fallback (default 0)
+        self.assertEqual(sp.source_days, 0)
+        self.assertEqual(sp.projected_amount, ProjectionConfig.get_solo().cold_start_fallback)
