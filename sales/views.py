@@ -1462,3 +1462,91 @@ def daily_sales_report(request):
         "start": start,
         "end": today,
     })
+
+
+# ---------------------------------------------------------------------------
+# Projections vs actuals report
+# ---------------------------------------------------------------------------
+from datetime import timedelta as _pr_td
+from django.db.models import Sum as _pr_Sum
+from .models import SalesProjection as _pr_SalesProjection
+
+
+@login_required
+def projections_report(request):
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Director authorization required.")
+
+    try:
+        days = int(request.GET.get("days", 14) or 14)
+    except (TypeError, ValueError):
+        days = 14
+    days = max(1, min(days, 90))
+    point_filter = (request.GET.get("point") or "").strip()
+
+    today = timezone.localdate()
+    start = today - _pr_td(days=days - 1)
+
+    proj_qs = (
+        _pr_SalesProjection.objects
+        .filter(date__gte=start, date__lte=today)
+        .select_related("operating_point")
+        .order_by("-date", "operating_point__code")
+    )
+    if point_filter:
+        proj_qs = proj_qs.filter(operating_point__code__iexact=point_filter)
+
+    actual_rows = (
+        Sale.objects
+        .filter(
+            payment_status=Sale.PaymentStatus.PAID,
+            business_day__business_date__gte=start,
+            business_day__business_date__lte=today,
+        )
+        .values("business_day__business_date", "operating_point_id")
+        .annotate(total=_pr_Sum("total"))
+    )
+    actual_map = {
+        (r["business_day__business_date"], r["operating_point_id"]):
+            r["total"] or Decimal("0")
+        for r in actual_rows
+    }
+
+    rows = []
+    for p in proj_qs:
+        actual = actual_map.get((p.date, p.operating_point_id), Decimal("0"))
+        var_kes = actual - p.projected_amount
+        if p.projected_amount > 0:
+            var_pct = (var_kes / p.projected_amount) * Decimal("100")
+        else:
+            var_pct = None
+
+        if var_pct is None:
+            color = "grey"
+        elif var_pct >= Decimal("-10"):
+            color = "green"
+        elif var_pct >= Decimal("-30"):
+            color = "amber"
+        else:
+            color = "red"
+
+        rows.append({
+            "projection": p,
+            "actual": actual,
+            "variance_kes": var_kes,
+            "variance_pct": var_pct,
+            "color": color,
+        })
+
+    total_proj = sum((r["projection"].projected_amount for r in rows), Decimal("0"))
+    total_actual = sum((r["actual"] for r in rows), Decimal("0"))
+
+    return render(request, "sales/projections_report.html", {
+        "rows": rows,
+        "days": days,
+        "point_filter": point_filter,
+        "all_points": OperatingPoint.objects.filter(is_active=True).order_by("code"),
+        "total_projected": total_proj,
+        "total_actual": total_actual,
+        "overall_variance": total_actual - total_proj,
+    })

@@ -47,4 +47,5 @@ urlpatterns = [
     path("reports/pnl/", views.pnl_report, name="pnl_report"),
     path("reports/", views.reports_home, name="reports_home"),
     path("reports/daily-sales/", views.daily_sales_report, name="daily_sales"),
+    path("reports/projections/", views.projections_report, name="projections_report"),
 ]

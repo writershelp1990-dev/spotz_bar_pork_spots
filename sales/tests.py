@@ -1781,3 +1781,121 @@ class ProjectionCommandTests(TestCase):
         # Cold start -> 0 source days, amount = cold_start_fallback (default 0)
         self.assertEqual(sp.source_days, 0)
         self.assertEqual(sp.projected_amount, ProjectionConfig.get_solo().cold_start_fallback)
+
+class ProjectionsReportTests(TestCase):
+    """Projections vs actuals report: permissions, variance math, filters."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+        from datetime import timedelta
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from accounts.models import OperatingPoint, RoleDefinition
+        from business.business_day_models import BusinessDay
+        from .models import Sale, SalesProjection
+
+        User = get_user_model()
+        dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        bar_role, _ = RoleDefinition.objects.get_or_create(
+            code="BAR_ATTENDANT", defaults={"name": "Bar Attendant"})
+        cls.director = User.objects.create_user(
+            username="pr_dir", password="pw", role="DIRECTOR",
+            role_definition=dir_role, is_active=True, is_active_staff=True)
+        cls.staff = User.objects.create_user(
+            username="pr_staff", password="pw", role="BAR_ATTENDANT",
+            role_definition=bar_role, is_active=True, is_active_staff=True)
+
+        cls.bar, _ = OperatingPoint.objects.get_or_create(
+            code="BAR", defaults={"name": "Bar", "is_active": True})
+
+        today = timezone.localdate()
+        cls.yesterday = today - timedelta(days=1)
+
+        # Business day for yesterday (closed)
+        cls.day = BusinessDay.objects.create(
+            business_date=cls.yesterday,
+            status=BusinessDay.Status.CLOSED,
+            actual_opened_at=timezone.now() - timedelta(days=1),
+            actual_closed_at=timezone.now() - timedelta(hours=12),
+            opened_by=cls.director,
+            closed_by=cls.director,
+        )
+
+        # Projection for yesterday: 50000
+        SalesProjection.objects.create(
+            date=cls.yesterday,
+            operating_point=cls.bar,
+            projected_amount=Decimal("50000.00"),
+            is_override=False,
+        )
+
+        # Actual sales for yesterday: 40000 (variance -20%)
+        Sale.objects.create(
+            sale_number="PR-TEST-1", business_day=cls.day,
+            operating_point=cls.bar, cashier=cls.director,
+            payment_method="CASH", total=Decimal("40000.00"),
+            amount_tendered=Decimal("40000.00"), payment_status="PAID",
+        )
+
+    def test_director_sees_page(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:projections_report"))
+        self.assertEqual(r.status_code, 200)
+
+    def test_non_director_forbidden(self):
+        from django.urls import reverse
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse("sales:projections_report"))
+        self.assertEqual(r.status_code, 403)
+
+    def test_anonymous_redirects(self):
+        from django.urls import reverse
+        r = self.client.get(reverse("sales:projections_report"))
+        self.assertEqual(r.status_code, 302)
+
+    def test_variance_computed_correctly(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:projections_report"))
+        body = r.content.decode()
+        # Both amounts present
+        self.assertIn("50000.00", body)
+        self.assertIn("40000.00", body)
+        # Variance KES = 40000 - 50000 = -10000
+        self.assertIn("-10000.00", body)
+        # Variance % = -20.0
+        self.assertIn("-20.0%", body)
+
+    def test_filter_by_point(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:projections_report") + "?point=BAR")
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("50000.00", body)
+
+    def test_hub_link_present(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:reports_home"))
+        body = r.content.decode()
+        self.assertIn("Projections vs Actuals", body)
+
+    def test_period_filter_default_shows_recent(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:projections_report") + "?days=7")
+        self.assertEqual(r.status_code, 200)
+
+    def test_empty_state_when_nothing_in_period(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        # Filter to a point with no projections
+        r = self.client.get(reverse("sales:projections_report") + "?point=KITCHEN")
+        self.assertEqual(r.status_code, 200)
+        # KITCHEN has no projection or sale seeded, so table body shows empty state
+        body = r.content.decode()
+        self.assertIn("No projections", body)
