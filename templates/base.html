@@ -166,6 +166,18 @@
                 <span>Profit & Loss</span>
             </a>
 
+
+            {% if user.is_director %}
+            <div class="nav-section">CONFIGURATION</div>
+
+            <a href="/business-day/">
+                <span>Business Day</span>
+            </a>
+
+            <a href="/business-day/holidays/">
+                <span>Public Holidays</span>
+            </a>
+            {% endif %}
             <form method="post" action="{% url 'logout' %}" class="logout-form sidebar-logout-form">
                 {% csrf_token %}
                 <button type="submit" class="logout-button">Logout</button>

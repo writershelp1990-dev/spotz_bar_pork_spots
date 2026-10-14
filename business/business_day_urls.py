@@ -39,4 +39,5 @@ urlpatterns = [
     ),
     path("holidays/<int:pk>/edit/", business_day_views.holiday_edit, name="holiday_edit"),
     path("holidays/<int:pk>/toggle/", business_day_views.holiday_toggle, name="holiday_toggle"),
+    path("closing/", business_day_views.daily_closing, name="closing"),
 ]

@@ -374,3 +374,75 @@ class HolidayListViewTests(TestCase):
         r = self.client.get(
             reverse("business_day:holiday_toggle", args=[self.future.pk]))
         self.assertEqual(r.status_code, 403)
+
+class DailyClosingTests(TestCase):
+    """Daily closing page: permissions, fallback, aggregates."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        from accounts.models import RoleDefinition
+        User = get_user_model()
+        dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        bar_role, _ = RoleDefinition.objects.get_or_create(
+            code="BAR_ATTENDANT", defaults={"name": "Bar Attendant"})
+        cls.director = User.objects.create_user(
+            username="dc_dir", password="pw", role="DIRECTOR",
+            role_definition=dir_role, is_active=True, is_active_staff=True)
+        cls.staff = User.objects.create_user(
+            username="dc_staff", password="pw", role="BAR_ATTENDANT",
+            role_definition=bar_role, is_active=True, is_active_staff=True)
+
+    def test_director_sees_page(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("business_day:closing"))
+        self.assertEqual(r.status_code, 200)
+
+    def test_non_director_forbidden(self):
+        from django.urls import reverse
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse("business_day:closing"))
+        self.assertEqual(r.status_code, 403)
+
+    def test_anonymous_redirects(self):
+        from django.urls import reverse
+        r = self.client.get(reverse("business_day:closing"))
+        self.assertEqual(r.status_code, 302)
+
+    def test_no_business_day_shows_empty_state(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("business_day:closing"))
+        self.assertContains(r, "No Business Day Yet")
+
+    def test_open_day_is_shown(self):
+        from django.urls import reverse
+        from django.utils import timezone
+        BusinessDay.objects.create(
+            business_date=timezone.localdate(),
+            status=BusinessDay.Status.OPEN,
+            actual_opened_at=timezone.now(),
+            opened_by=self.director,
+        )
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("business_day:closing"))
+        self.assertContains(r, "OPEN")
+        self.assertContains(r, "Close Business Day")
+
+    def test_falls_back_to_most_recent_closed_day(self):
+        from django.urls import reverse
+        from django.utils import timezone
+        from datetime import timedelta
+        BusinessDay.objects.create(
+            business_date=timezone.localdate() - timedelta(days=1),
+            status=BusinessDay.Status.CLOSED,
+            actual_opened_at=timezone.now() - timedelta(days=1),
+            actual_closed_at=timezone.now() - timedelta(hours=12),
+            opened_by=self.director,
+            closed_by=self.director,
+        )
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("business_day:closing"))
+        self.assertContains(r, "CLOSED")

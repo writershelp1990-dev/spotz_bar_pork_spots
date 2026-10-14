@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="spotz-page">
+  <div class="spotz-page-header">
+    <div>
+      <h1>Daily Closing</h1>
+      <p>End-of-day reconciliation and stock snapshot.</p>
+    </div>
+    <div class="spotz-actions">
+      <a href="{% url 'business_day:dashboard' %}" class="spotz-btn">Back to Business Day</a>
+      <button type="button" class="spotz-btn" onclick="window.print()">Print</button>
+    </div>
+  </div>
+
+  {% if not day %}
+    <div class="spotz-panel">
+      <h2>No Business Day Yet</h2>
+      <p>Open a business day to start trading.</p>
+      <a href="{% url 'business_day:open' %}" class="spotz-btn spotz-btn-primary">Open Business Day</a>
+    </div>
+  {% else %}
+
+    <div class="spotz-panel">
+      {% if is_open %}
+        <h2>OPEN - {{ day.business_date }}</h2>
+        <p>Opened: {{ day.actual_opened_at|date:"Y-m-d H:i" }}</p>
+        <div class="spotz-actions">
+          <a href="{% url 'business_day:close' day.pk %}" class="spotz-btn spotz-btn-primary">Close Business Day</a>
+        </div>
+      {% else %}
+        <h2>CLOSED - {{ day.business_date }}</h2>
+        <p>Closed: {{ day.actual_closed_at|date:"Y-m-d H:i" }}</p>
+      {% endif %}
+    </div>
+
+    <div class="spotz-panel">
+      <h2>Sales at a glance</h2>
+      <table style="width:100%;border-collapse:collapse">
+        <tr><th style="text-align:left;padding:6px 8px">Transactions</th><td style="padding:6px 8px">{{ sales_count }}</td></tr>
+        <tr><th style="text-align:left;padding:6px 8px">Gross sales</th><td style="padding:6px 8px">{{ sales_total|floatformat:2 }}</td></tr>
+        <tr><th style="text-align:left;padding:6px 8px">Cash</th><td style="padding:6px 8px">{{ cash_total|floatformat:2 }}</td></tr>
+        <tr><th style="text-align:left;padding:6px 8px">M-Pesa</th><td style="padding:6px 8px">{{ mpesa_total|floatformat:2 }}</td></tr>
+        <tr><th style="text-align:left;padding:6px 8px">Card</th><td style="padding:6px 8px">{{ card_total|floatformat:2 }}</td></tr>
+        <tr><th style="text-align:left;padding:6px 8px">Other</th><td style="padding:6px 8px">{{ other_total|floatformat:2 }}</td></tr>
+      </table>
+    </div>
+
+    <div class="spotz-panel">
+      <h2>Reconciliation</h2>
+      <p style="background:#eff6ff;border-left:3px solid #2563eb;padding:8px 12px;border-radius:4px">
+        Cash expected in drawer: <strong>{{ cash_total|floatformat:2 }}</strong>
+        <br><span class="muted small">Match this against the physical count when closing.</span>
+      </p>
+      <p class="muted small">Non-cash total (M-Pesa + Card + Other): {{ mpesa_total|add:card_total|add:other_total|floatformat:2 }}</p>
+    </div>
+
+    <div class="spotz-panel">
+      <h2>Staff on shift</h2>
+      {% if staff %}
+        {% for d in staff %}
+          <div class="spotz-list-row">
+            <div>
+              <strong>{{ d.employee.user.get_full_name|default:d.employee.user.username }}</strong>
+              <div>{{ d.operating_point.name }} - {{ d.start_time|time:"H:i" }} to {{ d.end_time|time:"H:i" }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p>No staff deployed for this day.</p>
+      {% endif %}
+    </div>
+
+    <div class="spotz-panel">
+      <h2>Wastage</h2>
+      {% if wastage %}
+        <table style="width:100%;border-collapse:collapse">
+          <tr><th style="text-align:left;padding:6px 8px">Product</th><th style="text-align:left;padding:6px 8px">Point</th><th style="text-align:left;padding:6px 8px">Qty</th><th style="text-align:left;padding:6px 8px">Reason</th></tr>
+          {% for w in wastage %}
+            <tr>
+              <td style="padding:6px 8px">{{ w.product.name }}</td>
+              <td style="padding:6px 8px">{{ w.operating_point.code }}</td>
+              <td style="padding:6px 8px">{{ w.quantity_delta|floatformat:3 }}</td>
+              <td style="padding:6px 8px">{{ w.reason|default:"-" }}</td>
+            </tr>
+          {% endfor %}
+          <tr><th style="text-align:left;padding:6px 8px">Total</th><td></td><td style="padding:6px 8px"><strong>{{ wastage_total|floatformat:3 }}</strong></td><td></td></tr>
+        </table>
+      {% else %}
+        <p>No wastage recorded for this day.</p>
+      {% endif %}
+    </div>
+
+    <div class="spotz-panel">
+      <h2>Stock by point</h2>
+      <p class="muted small">Current balance as of now. Sales made after this page loads will change these numbers.</p>
+      {% for entry in point_stock %}
+        <h3>{{ entry.point.code }} - {{ entry.point.name }}</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+          <tr><th style="text-align:left;padding:6px 8px">Product</th><th style="text-align:left;padding:6px 8px">On hand</th></tr>
+          {% for b in entry.balances %}
+            <tr>
+              <td style="padding:6px 8px">{{ b.product.name }}</td>
+              <td style="padding:6px 8px">{{ b.quantity|floatformat:3 }} {{ b.product.selling_unit.abbreviation }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      {% empty %}
+        <p>No stock recorded at any point.</p>
+      {% endfor %}
+    </div>
+
+  {% endif %}
+</div>
+
+<style>
+@media print {
+  .sidebar, .topbar, .app-footer, .user-actions { display: none !important; }
+  .main-content { margin-left: 0 !important; }
+}
+</style>
+{% endblock %}

@@ -372,3 +372,95 @@ def deployment_cancel(request, pk):
         messages.success(request, "Staff deployment cancelled.")
 
     return redirect("business_day:dashboard")
+
+# ---------------------------------------------------------------------------
+# Daily Closing — read-only reconciliation for a business day
+# ---------------------------------------------------------------------------
+from decimal import Decimal as _dc_Decimal
+from django.db.models import Count as _dc_Count, Sum as _dc_Sum
+from sales.models import (
+    Sale as _dc_Sale,
+    StockBalance as _dc_StockBalance,
+    StockLedger as _dc_StockLedger,
+)
+from accounts.models import OperatingPoint as _dc_OperatingPoint
+
+
+@login_required
+def daily_closing(request):
+    _director_required(request)
+
+    open_day = BusinessDay.objects.filter(
+        status=BusinessDay.Status.OPEN
+    ).first()
+    day = open_day or BusinessDay.objects.order_by("-business_date").first()
+
+    if day is None:
+        return render(request, "business/business_day_closing.html", {
+            "day": None,
+            "is_open": False,
+        })
+
+    paid = _dc_Sale.objects.filter(
+        business_day=day,
+        payment_status=_dc_Sale.PaymentStatus.PAID,
+    )
+
+    totals = paid.aggregate(count=_dc_Count("id"), total=_dc_Sum("total"))
+    sales_count = totals["count"] or 0
+    sales_total = totals["total"] or _dc_Decimal("0")
+
+    def _sum_by(**kw):
+        return paid.filter(**kw).aggregate(s=_dc_Sum("total"))["s"] or _dc_Decimal("0")
+
+    cash_total = _sum_by(payment_method="CASH")
+    mpesa_total = _sum_by(payment_method__in=["MPESA", "MPESA_MANUAL"])
+    card_total = _sum_by(payment_method="CARD")
+    other_total = _sum_by(payment_method="OTHER")
+
+    staff = (
+        StaffDeployment.objects
+        .filter(
+            business_day=day,
+            status=StaffDeployment.Status.ACTIVE,
+        )
+        .select_related("employee__user", "operating_point")
+        .order_by("operating_point__code", "start_time")
+    )
+
+    wastage = (
+        _dc_StockLedger.objects
+        .filter(
+            movement_type=_dc_StockLedger.MovementType.WASTAGE,
+            created_at__date=day.business_date,
+        )
+        .select_related("product", "operating_point", "created_by")
+        .order_by("-created_at")
+    )
+    wastage_sum = wastage.aggregate(s=_dc_Sum("quantity_delta"))["s"] or _dc_Decimal("0")
+
+    point_stock = []
+    for point in _dc_OperatingPoint.objects.filter(is_active=True).order_by("code"):
+        rows = list(
+            _dc_StockBalance.objects
+            .filter(operating_point=point, quantity__gt=0)
+            .select_related("product")
+            .order_by("-quantity")[:10]
+        )
+        if rows:
+            point_stock.append({"point": point, "balances": rows})
+
+    return render(request, "business/business_day_closing.html", {
+        "day": day,
+        "is_open": day.status == BusinessDay.Status.OPEN,
+        "sales_count": sales_count,
+        "sales_total": sales_total,
+        "cash_total": cash_total,
+        "mpesa_total": mpesa_total,
+        "card_total": card_total,
+        "other_total": other_total,
+        "staff": staff,
+        "wastage": wastage,
+        "wastage_total": abs(wastage_sum),
+        "point_stock": point_stock,
+    })
