@@ -18,7 +18,6 @@ pip-wheel-metadata/
 .venv/
 venv/
 env/
-ENV/
 
 # ============================================================
 # Django
@@ -152,13 +151,6 @@ property_*/
 # Local
 # Session artifacts and superseded files
 *.unused_*
-*.backup_*
-*.py.*.bak
-*.broken_*
-*_backup_*/
-*_disabled_*/
-low_stock_*/
-property_*/
 arrow_fix*/
 batch_and_hold_fix*/
 hold_unpaid_fix*/
@@ -216,17 +208,14 @@ fix_status_*/
 transfer_ack_*/
 cleanup_*/
 .bak_*
-*.bak_*
 
 auto_deploy_*/
 
 pointday_*/
-auto_deploy_*/
 
 holiday_ui*/
 
 daily_closing_*/
 
-daily_closing_*/
 
 *.bak_si_*
