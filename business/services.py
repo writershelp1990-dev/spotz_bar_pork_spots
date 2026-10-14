@@ -130,9 +130,23 @@ def open_point(*, user, point, business_day=None):
     if business_day is None:
         business_day = BusinessDay.objects.filter(
             status=BusinessDay.Status.OPEN).first()
+
+    # Stale-day guard: if the open day isn't from today (local date),
+    # close it before starting a fresh one. Prevents a lingering day
+    # from silently absorbing a week of sales.
+    today = _pd_tz2.localdate()
+    if business_day is not None and business_day.business_date != today:
+        business_day.status = BusinessDay.Status.CLOSED
+        business_day.actual_closed_at = _pd_tz2.now()
+        business_day.closed_by = user
+        business_day.save(update_fields=[
+            "status", "actual_closed_at", "closed_by", "updated_at"])
+        business_day = None
+
     if business_day is None:
-        # Create the global day on the fly
-        today = _pd_tz2.localdate()
+        # Look for an existing day for today (may be CLOSED from a
+        # prior auto-close this same date — reuse it rather than
+        # creating a duplicate).
         business_day = BusinessDay.objects.filter(
             business_date=today).first()
         if business_day is None:
@@ -142,6 +156,16 @@ def open_point(*, user, point, business_day=None):
                 actual_opened_at=_pd_tz2.now(),
                 opened_by=user,
             )
+        else:
+            # Reopen a same-date closed day rather than creating a new one.
+            business_day.status = BusinessDay.Status.OPEN
+            if business_day.actual_opened_at is None:
+                business_day.actual_opened_at = _pd_tz2.now()
+            business_day.reopened_at = _pd_tz2.now()
+            business_day.reopened_by = user
+            business_day.save(update_fields=[
+                "status", "actual_opened_at", "reopened_at",
+                "reopened_by", "updated_at"])
 
     pd = _pd_PointDay.objects.select_for_update().filter(
         business_day=business_day,

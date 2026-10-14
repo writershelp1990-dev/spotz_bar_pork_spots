@@ -108,6 +108,26 @@ from business.business_day_models import PointDay as _pd_PointDayT
 
 
 class PointDayTests(_AdBase):
+    def test_open_point_closes_stale_open_day(self):
+        # A BusinessDay left open from a previous date should be
+        # auto-closed when a point opens on a new date.
+        yesterday = _ad_tz.localdate() - __import__("datetime").timedelta(days=1)
+        stale = _AdDay.objects.create(
+            business_date=yesterday,
+            status=_AdDay.Status.OPEN,
+            actual_opened_at=_ad_tz.now(),
+            opened_by=self.director,
+            scheduled_open_time=_ad_time(8, 0),
+            scheduled_close_time=_ad_time(23, 0))
+        _pd_openT(user=self.director, point=self.bar)
+        stale.refresh_from_db()
+        self.assertEqual(stale.status, _AdDay.Status.CLOSED)
+        self.assertIsNotNone(stale.actual_closed_at)
+        # A new day for today was created
+        today = _ad_tz.localdate()
+        self.assertTrue(
+            _AdDay.objects.filter(business_date=today).exists())
+
     """Open/close a point independently; auto-close the global day at the end."""
 
     def test_attendant_can_open_their_point(self):
