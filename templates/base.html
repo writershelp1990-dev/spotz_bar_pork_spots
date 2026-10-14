@@ -54,10 +54,12 @@
 
             
 
-            <a href="#" aria-disabled="true" title="Feature not implemented yet" class="feature-unavailable">
+            {% if user.is_director %}
+            <a href="/business-day/closing/">
                 <span class="nav-icon">◫</span>
                 <span>Daily Closing</span>
             </a>
+            {% endif %}
 
             <div class="nav-section">INVENTORY</div>
 
