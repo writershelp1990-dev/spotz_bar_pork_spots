@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="spotz-page">
+  <div class="spotz-page-header">
+    <div>
+      <h1>Expenses</h1>
+      <p>Record and review business expenses. All new entries start as pending for Director approval.</p>
+    </div>
+    <a href="{% url 'expenses:expense_create' %}" class="spotz-btn spotz-btn-primary">+ Record expense</a>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}<div class="spotz-panel" style="padding:8px 12px">{{ m }}</div>{% endfor %}
+  {% endif %}
+
+  <div class="spotz-panel">
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <label>Period:
+        <select name="days">
+          <option value="7"  {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+          <option value="14" {% if days == 14 %}selected{% endif %}>Last 14 days</option>
+          <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+          <option value="90" {% if days == 90 %}selected{% endif %}>Last 90 days</option>
+          <option value="365" {% if days == 365 %}selected{% endif %}>Last year</option>
+        </select>
+      </label>
+      <label>Category:
+        <select name="category">
+          <option value="">All categories</option>
+          {% for c in categories %}
+            <option value="{{ c.code }}" {% if category_filter == c.code %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Status:
+        <select name="status">
+          <option value="">All statuses</option>
+          {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">Apply</button>
+    </form>
+  </div>
+
+  <div class="spotz-panel">
+    <div style="display:flex;gap:24px;padding:8px 16px;background:#f9fafb;border-radius:6px;margin-bottom:12px">
+      <div><span class="muted small">Entries</span><br><strong>{{ entry_count }}</strong></div>
+      <div><span class="muted small">Total</span><br><strong>{{ total_amount|floatformat:2 }}</strong></div>
+    </div>
+
+    {% if entries %}
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="border-bottom:2px solid #e5e7eb;text-align:left">
+            <th style="padding:8px">Date</th>
+            <th style="padding:8px">Category</th>
+            <th style="padding:8px">Payee</th>
+            <th style="padding:8px;text-align:right">Amount</th>
+            <th style="padding:8px">Point</th>
+            <th style="padding:8px">Status</th>
+            <th style="padding:8px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+            <tr style="border-bottom:1px solid #f3f4f6">
+              <td style="padding:8px">{{ e.expense_date }}</td>
+              <td style="padding:8px">{{ e.category }}</td>
+              <td style="padding:8px">{{ e.payee|default:"-" }}</td>
+              <td style="padding:8px;text-align:right">{{ e.amount|floatformat:2 }}</td>
+              <td style="padding:8px">{{ e.operating_point.code|default:"-" }}</td>
+              <td style="padding:8px">
+                <span class="badge badge-{{ e.status }}">{{ e.get_status_display }}</span>
+              </td>
+              <td style="padding:8px">
+                <a href="{% url 'expenses:expense_detail' e.pk %}">View</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No expenses in this period.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

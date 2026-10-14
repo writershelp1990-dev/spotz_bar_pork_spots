@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="spotz-page">
+  <div class="spotz-page-header">
+    <div>
+      <h1>{{ title }}</h1>
+      <p>{% if expense %}Editing pending expense #{{ expense.pk }}{% else %}All entries start as pending. The Director approves or rejects.{% endif %}</p>
+    </div>
+    <a href="{% url 'expenses:expense_list' %}" class="spotz-btn">Back to Expenses</a>
+  </div>
+
+  <div class="spotz-panel">
+    <form method="post" style="display:grid;gap:12px;max-width:720px">
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div style="background:#fee2e2;padding:8px 12px;border-radius:6px">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      {% for field in form %}
+        <div>
+          <label style="display:block;font-weight:600;margin-bottom:4px">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}
+            <div class="muted small" style="margin-top:2px">{{ field.help_text }}</div>
+          {% endif %}
+          {% if field.errors %}
+            <div style="color:#b91c1c;font-size:.9em;margin-top:2px">{{ field.errors }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+
+      <div style="display:flex;gap:8px">
+        <button type="submit" class="spotz-btn spotz-btn-primary">{{ submit_label }}</button>
+        <a href="{% url 'expenses:expense_list' %}" class="spotz-btn">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+<style>
+  form input[type="text"], form input[type="number"], form input[type="date"],
+  form select, form textarea {
+    width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px;
+    font: inherit;
+  }
+</style>
+{% endblock %}

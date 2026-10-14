@@ -14,3 +14,4 @@ urlpatterns = [
     path("stock/", include("stock.urls")),
     path("business/", include("business.suppliers_urls")),
 ]
+urlpatterns += [path("expenses/", include("expenses.urls"))]

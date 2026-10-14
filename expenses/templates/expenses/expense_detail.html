@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="spotz-page">
+  <div class="spotz-page-header">
+    <div>
+      <h1>Expense #{{ expense.pk }}</h1>
+      <p>{{ expense.category }} - {{ expense.amount|floatformat:2 }}</p>
+    </div>
+    <a href="{% url 'expenses:expense_list' %}" class="spotz-btn">Back to Expenses</a>
+  </div>
+
+  {% if messages %}
+    {% for m in messages %}<div class="spotz-panel" style="padding:8px 12px">{{ m }}</div>{% endfor %}
+  {% endif %}
+
+  <div class="spotz-panel">
+    <table style="width:100%;border-collapse:collapse">
+      <tr><th style="text-align:left;padding:6px 8px">Status</th><td style="padding:6px 8px"><span class="badge badge-{{ expense.status }}">{{ expense.get_status_display }}</span></td></tr>
+      <tr><th style="text-align:left;padding:6px 8px">Category</th><td style="padding:6px 8px">{{ expense.category }}</td></tr>
+      <tr><th style="text-align:left;padding:6px 8px">Amount</th><td style="padding:6px 8px"><strong>{{ expense.amount|floatformat:2 }}</strong></td></tr>
+      <tr><th style="text-align:left;padding:6px 8px">Date</th><td style="padding:6px 8px">{{ expense.expense_date }}</td></tr>
+      <tr><th style="text-align:left;padding:6px 8px">Payment method</th><td style="padding:6px 8px">{{ expense.get_payment_method_display }}</td></tr>
+      <tr><th style="text-align:left;padding:6px 8px">Payee</th><td style="padding:6px 8px">{{ expense.payee|default:"-" }}</td></tr>
+      <tr><th style="text-align:left;padding:6px 8px">Operating point</th><td style="padding:6px 8px">{{ expense.operating_point.code|default:"Business-wide" }}</td></tr>
+      <tr><th style="text-align:left;padding:6px 8px">Reference</th><td style="padding:6px 8px">{{ expense.reference|default:"-" }}</td></tr>
+      <tr><th style="text-align:left;padding:6px 8px">Description</th><td style="padding:6px 8px">{{ expense.description|default:"-"|linebreaksbr }}</td></tr>
+    </table>
+  </div>
+
+  <div class="spotz-panel">
+    <h2>History</h2>
+    <table style="width:100%;border-collapse:collapse">
+      <tr><th style="text-align:left;padding:6px 8px">Entered by</th><td style="padding:6px 8px">{{ expense.entered_by.username }} at {{ expense.entered_at|date:"Y-m-d H:i" }}</td></tr>
+      {% if expense.approved_by %}
+        <tr><th style="text-align:left;padding:6px 8px">{% if expense.status == "APPROVED" %}Approved{% else %}Rejected{% endif %} by</th><td style="padding:6px 8px">{{ expense.approved_by.username }} at {{ expense.approved_at|date:"Y-m-d H:i" }}</td></tr>
+        {% if expense.approval_notes %}
+          <tr><th style="text-align:left;padding:6px 8px">Notes</th><td style="padding:6px 8px">{{ expense.approval_notes|linebreaksbr }}</td></tr>
+        {% endif %}
+      {% endif %}
+    </table>
+  </div>
+
+  {% if can_approve %}
+    <div class="spotz-panel">
+      <h2>Director decision</h2>
+      <form method="post" action="{% url 'expenses:expense_approve' expense.pk %}" style="display:inline-block;margin-right:16px">
+        {% csrf_token %}
+        <input type="text" name="notes" placeholder="Optional approval note" style="padding:4px 6px">
+        <button type="submit" class="spotz-btn spotz-btn-primary">Approve</button>
+      </form>
+      <form method="post" action="{% url 'expenses:expense_reject' expense.pk %}" style="display:inline-block">
+        {% csrf_token %}
+        <input type="text" name="reason" placeholder="Rejection reason (required)" required style="padding:4px 6px">
+        <button type="submit" class="spotz-btn">Reject</button>
+      </form>
+    </div>
+  {% endif %}
+
+  {% if can_edit or is_dir %}
+    <div class="spotz-panel">
+      <h2>Actions</h2>
+      {% if can_edit %}
+        <a href="{% url 'expenses:expense_edit' expense.pk %}" class="spotz-btn">Edit</a>
+      {% endif %}
+      {% if is_dir and expense.status == "PENDING" %}
+        <form method="post" action="{% url 'expenses:expense_delete' expense.pk %}" style="display:inline-block;margin-left:8px" onsubmit="return confirm('Delete this pending expense? This cannot be undone.')">
+          {% csrf_token %}
+          <button type="submit" class="spotz-btn" style="background:#b91c1c;color:#fff">Delete</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
