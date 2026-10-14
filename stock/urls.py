@@ -34,4 +34,5 @@ urlpatterns = [
     path("points/<str:code>/", views.point_detail, name="point_detail"),
     path("points/<str:code>/open/",  business_views.point_open,  name="point_open"),
     path("points/<str:code>/close/", business_views.point_close, name="point_close"),
+    path("wastage/", views.wastage_list, name="wastage_list"),
 ]

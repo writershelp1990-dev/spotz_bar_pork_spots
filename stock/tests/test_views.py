@@ -417,3 +417,79 @@ class PointDetailViewTests(ViewTestBase):
         r = self.client.get(reverse("stock:point_detail", args=["KITCHEN"]))
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, self.pork.name)
+
+class WastageListViewTests(ViewTestBase):
+    """Wastage list: permissions, scoping, filters, totals."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from decimal import Decimal
+        from django.utils import timezone
+        from sales.models import StockLedger
+
+        # Two wastage rows at BUTCHERY, one at KITCHEN.
+        StockLedger.objects.create(
+            product=cls.pork, operating_point=cls.butchery,
+            movement_type=StockLedger.MovementType.WASTAGE,
+            quantity_delta=Decimal("-1.500"),
+            balance_after=Decimal("10.000"),
+            reason="Spoiled", created_by=cls.director,
+        )
+        StockLedger.objects.create(
+            product=cls.pork, operating_point=cls.butchery,
+            movement_type=StockLedger.MovementType.WASTAGE,
+            quantity_delta=Decimal("-2.000"),
+            balance_after=Decimal("8.000"),
+            reason="Damaged", created_by=cls.director,
+        )
+        StockLedger.objects.create(
+            product=cls.pork, operating_point=cls.kitchen,
+            movement_type=StockLedger.MovementType.WASTAGE,
+            quantity_delta=Decimal("-0.500"),
+            balance_after=Decimal("5.000"),
+            reason="Trim loss", created_by=cls.director,
+        )
+
+    def test_director_sees_page(self):
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("stock:wastage_list"))
+        self.assertEqual(r.status_code, 200)
+
+    def test_anonymous_redirects(self):
+        r = self.client.get(reverse("stock:wastage_list"))
+        self.assertEqual(r.status_code, 302)
+
+    def test_director_sees_all_points(self):
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("stock:wastage_list"))
+        body = r.content.decode()
+        self.assertIn("BUTCHERY", body)
+        self.assertIn("KITCHEN", body)
+
+    def test_director_filter_by_point(self):
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("stock:wastage_list") + "?point=KITCHEN")
+        body = r.content.decode()
+        self.assertIn("KITCHEN", body)
+        # BUTCHERY should not appear as a row's point column.
+        # The point dropdown still contains BUTCHERY as an option, so we
+        # check that no BUTCHERY row was rendered by looking for the
+        # "Spoiled" or "Damaged" reasons (BUTCHERY-only entries).
+        self.assertNotIn("Spoiled", body)
+        self.assertNotIn("Damaged", body)
+
+    def test_point_staff_sees_only_own_point(self):
+        self.client.force_login(self.but_user)
+        r = self.client.get(reverse("stock:wastage_list"))
+        body = r.content.decode()
+        self.assertIn("Spoiled", body)
+        self.assertIn("Damaged", body)
+        self.assertNotIn("Trim loss", body)  # KITCHEN's entry
+
+    def test_totals_sum_correctly_for_staff(self):
+        self.client.force_login(self.but_user)
+        r = self.client.get(reverse("stock:wastage_list"))
+        body = r.content.decode()
+        # BUTCHERY total = 1.5 + 2.0 = 3.5
+        self.assertIn("3.500", body)

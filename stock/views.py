@@ -661,3 +661,68 @@ def point_detail(request, code):
             else None)
         ),        "recent_movements": recent_movements,
     })
+
+# ---------------------------------------------------------------------------
+# Wastage list
+# ---------------------------------------------------------------------------
+from datetime import timedelta as _wl_td
+from decimal import Decimal as _wl_Decimal
+from django.db.models import F as _wl_F
+from sales.models import StockLedger as _wl_StockLedger
+
+
+@login_required
+@require_active_staff
+def wastage_list(request):
+    user = request.user
+    is_dir = is_director(user)
+    point = stock_point_for(user)
+
+    try:
+        days = int(request.GET.get("days", 7) or 7)
+    except (TypeError, ValueError):
+        days = 7
+    days = max(1, min(days, 90))
+    point_filter = (request.GET.get("point") or "").strip()
+
+    since = timezone.now() - _wl_td(days=days)
+
+    qs = (_wl_StockLedger.objects
+          .filter(movement_type=_wl_StockLedger.MovementType.WASTAGE,
+                  created_at__gte=since)
+          .select_related("product", "operating_point", "created_by")
+          .order_by("-created_at"))
+
+    if not is_dir:
+        if point is None:
+            raise PermissionDenied("You are not assigned to a point.")
+        qs = qs.filter(operating_point=point)
+    elif point_filter:
+        qs = qs.filter(operating_point__code__iexact=point_filter)
+
+    total_qty = abs(
+        qs.aggregate(s=Sum("quantity_delta"))["s"] or _wl_Decimal("0")
+    )
+
+    entries = list(qs[:200])
+    total_cost = sum(
+        (abs(e.quantity_delta) * (e.unit_cost or _wl_Decimal("0")) for e in entries),
+        _wl_Decimal("0"),
+    )
+
+    if is_dir:
+        points = OperatingPoint.objects.filter(is_active=True).order_by("code")
+    else:
+        points = OperatingPoint.objects.filter(pk=point.pk)
+
+    return render(request, "stock/wastage_list.html", {
+        "entries": entries,
+        "entry_count": len(entries),
+        "total_qty": total_qty,
+        "total_cost": total_cost,
+        "days": days,
+        "point_filter": point_filter,
+        "points": points,
+        "is_dir": is_dir,
+        "point": point,
+    })
