@@ -118,6 +118,13 @@ class Expense(models.Model):
     approved_at = models.DateTimeField(null=True, blank=True)
     approval_notes = models.TextField(blank=True)
 
+    recurring_source = models.ForeignKey(
+        "RecurringExpense", on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name="generated_expenses",
+        help_text="Set when this expense was auto-generated from a recurring template.",
+    )
+
     class Meta:
         ordering = ["-expense_date", "-id"]
         verbose_name = "Expense"
@@ -133,3 +140,64 @@ class Expense(models.Model):
 
     def __str__(self):
         return str(self.expense_date) + " " + str(self.category) + " " + str(self.amount)
+
+
+class RecurringExpense(models.Model):
+    """Recurring bill template. Generates PENDING Expense rows on schedule."""
+
+    class Frequency(models.TextChoices):
+        WEEKLY = "WEEKLY", "Weekly"
+        MONTHLY = "MONTHLY", "Monthly"
+        QUARTERLY = "QUARTERLY", "Quarterly"
+        ANNUAL = "ANNUAL", "Annual"
+
+    category = models.ForeignKey(
+        ExpenseCategory, on_delete=models.PROTECT,
+        related_name="recurring_templates",
+    )
+    amount = models.DecimalField(
+        max_digits=14, decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    payee = models.CharField(max_length=150, blank=True)
+    description = models.TextField(blank=True)
+    reference = models.CharField(max_length=80, blank=True)
+    payment_method = models.CharField(
+        max_length=12, choices=Expense.PaymentMethod.choices,
+    )
+    operating_point = models.ForeignKey(
+        "accounts.OperatingPoint", on_delete=models.PROTECT,
+        null=True, blank=True, related_name="recurring_expenses",
+    )
+
+    frequency = models.CharField(max_length=10, choices=Frequency.choices)
+    due_day = models.PositiveSmallIntegerField(
+        help_text="Day of month for MONTHLY/QUARTERLY/ANNUAL (1-31). "
+                  "Day of week for WEEKLY (0=Mon, 6=Sun).",
+    )
+
+    is_active = models.BooleanField(default=True)
+    start_date = models.DateField(
+        help_text="First date this template may generate an expense.",
+    )
+    end_date = models.DateField(
+        null=True, blank=True,
+        help_text="Optional. Template stops generating after this date.",
+    )
+    last_generated_on = models.DateField(null=True, blank=True)
+    next_due_date = models.DateField(db_index=True)
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+        related_name="recurring_expenses_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["next_due_date", "id"]
+        verbose_name = "Recurring expense"
+        verbose_name_plural = "Recurring expenses"
+
+    def __str__(self):
+        return str(self.category) + " " + str(self.amount) + " " + self.get_frequency_display()
