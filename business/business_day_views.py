@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.utils import timezone
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .business_day_forms import (
@@ -180,13 +181,80 @@ def reopen_business_day_view(request, pk):
 def holiday_list(request):
     _director_required(request)
 
-    holidays = BusinessHoliday.objects.order_by("-date")
+    today = timezone.localdate()
+    upcoming = BusinessHoliday.objects.filter(date__gte=today).order_by("date")
+    past = BusinessHoliday.objects.filter(date__lt=today).order_by("-date")
 
     return render(
         request,
         "business/business_holidays.html",
-        {"holidays": holidays},
+        {"upcoming": upcoming, "past": past},
     )
+
+
+@login_required
+def holiday_edit(request, pk):
+    _director_required(request)
+
+    holiday = get_object_or_404(BusinessHoliday, pk=pk)
+
+    if request.method == "POST":
+        form = BusinessHolidayForm(request.POST, instance=holiday)
+        if form.is_valid():
+            form.save()
+            from audit.services import record_audit
+            record_audit(
+                request=request,
+                user=request.user,
+                action="UPDATE",
+                obj=holiday,
+                model_name="BusinessHoliday",
+                reason="Business holiday edited.",
+            )
+            messages.success(request, "Business holiday updated.")
+            return redirect("business_day:holidays")
+    else:
+        form = BusinessHolidayForm(instance=holiday)
+
+    return render(
+        request,
+        "business/business_day_form.html",
+        {
+            "form": form,
+            "title": "Edit Business Holiday",
+            "submit_label": "Save Changes",
+        },
+    )
+
+
+@login_required
+def holiday_toggle(request, pk):
+    _director_required(request)
+
+    if request.method != "POST":
+        raise PermissionDenied("POST required.")
+
+    holiday = get_object_or_404(BusinessHoliday, pk=pk)
+    old = holiday.is_active
+    holiday.is_active = not old
+    holiday.save(update_fields=["is_active", "updated_at"])
+
+    from audit.services import record_audit
+    record_audit(
+        request=request,
+        user=request.user,
+        action="UPDATE",
+        obj=holiday,
+        model_name="BusinessHoliday",
+        reason=f"Holiday {'deactivated' if old else 'reactivated'}.",
+        changes={"is_active": {"old": old, "new": holiday.is_active}},
+    )
+
+    messages.success(
+        request,
+        f"{holiday.name} {'deactivated' if old else 'reactivated'}.",
+    )
+    return redirect("business_day:holidays")
 
 
 @login_required

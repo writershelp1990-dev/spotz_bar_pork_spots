@@ -316,3 +316,61 @@ class BusinessDayTests(TestCase):
                 start_time=time(16, 0),
                 end_time=time(20, 0),
             )
+
+class HolidayListViewTests(TestCase):
+    """Holiday list splitting, edit, toggle."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        from accounts.models import RoleDefinition
+        role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        cls.director = User.objects.create_user(
+            username="hol_dir", password="pw", role="DIRECTOR",
+            role_definition=role, is_active=True, is_active_staff=True)
+
+    def setUp(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        self.client.force_login(self.director)
+        today = timezone.localdate()
+        self.future = BusinessHoliday.objects.create(
+            date=today + timedelta(days=10), name="Future Holiday")
+        self.past = BusinessHoliday.objects.create(
+            date=today - timedelta(days=10), name="Past Holiday")
+
+    def test_list_splits_upcoming_and_past(self):
+        from django.urls import reverse
+        r = self.client.get(reverse("business_day:holidays"))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("Future Holiday", body)
+        self.assertIn("Past Holiday", body)
+        self.assertLess(body.index("Future Holiday"), body.index("Past Holiday"))
+
+    def test_edit_updates_name(self):
+        from django.urls import reverse
+        r = self.client.post(
+            reverse("business_day:holiday_edit", args=[self.future.pk]),
+            {"date": self.future.date.isoformat(), "name": "Renamed",
+             "is_active": "on", "notes": ""})
+        self.assertEqual(r.status_code, 302)
+        self.future.refresh_from_db()
+        self.assertEqual(self.future.name, "Renamed")
+
+    def test_toggle_flips_is_active(self):
+        from django.urls import reverse
+        self.assertTrue(self.future.is_active)
+        r = self.client.post(
+            reverse("business_day:holiday_toggle", args=[self.future.pk]))
+        self.assertEqual(r.status_code, 302)
+        self.future.refresh_from_db()
+        self.assertFalse(self.future.is_active)
+
+    def test_toggle_requires_post(self):
+        from django.urls import reverse
+        r = self.client.get(
+            reverse("business_day:holiday_toggle", args=[self.future.pk]))
+        self.assertEqual(r.status_code, 403)

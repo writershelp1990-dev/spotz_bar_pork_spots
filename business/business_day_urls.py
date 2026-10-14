@@ -37,4 +37,6 @@ urlpatterns = [
         business_day_views.deployment_cancel,
         name="deployment_cancel",
     ),
+    path("holidays/<int:pk>/edit/", business_day_views.holiday_edit, name="holiday_edit"),
+    path("holidays/<int:pk>/toggle/", business_day_views.holiday_toggle, name="holiday_toggle"),
 ]

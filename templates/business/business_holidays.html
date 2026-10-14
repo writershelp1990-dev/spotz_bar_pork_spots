@@ -1,34 +1,78 @@
 {% extends "base.html" %}
-
 {% block content %}
-<div class="spotz-page">
-    <div class="spotz-page-header">
-        <div>
-            <h1>Public Holidays</h1>
-            <p>Configurable dates used by Business-Day scheduling.</p>
-        </div>
+<div style="max-width:960px;margin:0 auto;padding:20px">
+  <h1>Public Holidays</h1>
+  <p class="muted">Configurable dates used by Business-Day scheduling.</p>
 
-        <a href="{% url 'business_day:holiday_add' %}" class="spotz-btn spotz-btn-primary">
-            Add Holiday
-        </a>
-    </div>
+  <p style="background:#eff6ff;border-left:3px solid #2563eb;padding:8px 12px;border-radius:4px;font-size:.9em">
+    Holidays and weekends open bars at <strong>14:00</strong>.
+    Ordinary weekdays open at <strong>16:00</strong>. Closing time is 23:00 in all cases.
+    Inactive holidays are ignored by scheduling.
+  </p>
 
-    <div class="spotz-panel">
-        {% if holidays %}
-            {% for holiday in holidays %}
-                <div class="spotz-list-row">
-                    <div>
-                        <strong>{{ holiday.date }}</strong>
-                        <div>{{ holiday.name }}</div>
-                    </div>
-                    <span>
-                        {% if holiday.is_active %}Active{% else %}Inactive{% endif %}
-                    </span>
-                </div>
-            {% endfor %}
-        {% else %}
-            <p>No public holidays configured.</p>
-        {% endif %}
-    </div>
+  <p><a href="{% url 'business_day:holiday_add' %}" style="display:inline-block;padding:8px 14px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-weight:600">Add Holiday</a></p>
+
+  {% if messages %}{% for m in messages %}<p style="padding:8px 12px;background:#eef;border-radius:6px">{{ m }}</p>{% endfor %}{% endif %}
+
+  <h2 style="margin-top:24px">Upcoming</h2>
+  {% if upcoming %}
+    <table class="stock-table" style="width:100%;border-collapse:collapse;margin:12px 0">
+      <tr style="text-align:left;border-bottom:2px solid #e5e7eb">
+        <th style="padding:8px 10px">Date</th>
+        <th style="padding:8px 10px">Name</th>
+        <th style="padding:8px 10px">Active</th>
+        <th style="padding:8px 10px">Actions</th>
+      </tr>
+      {% for h in upcoming %}
+        <tr style="border-bottom:1px solid #e5e7eb">
+          <td style="padding:8px 10px">{{ h.date }}</td>
+          <td style="padding:8px 10px">{{ h.name }}</td>
+          <td style="padding:8px 10px">
+            {% if h.is_active %}<span style="color:#059669;font-weight:600">Yes</span>
+            {% else %}<span style="color:#b91c1c;font-weight:600">No</span>{% endif %}
+          </td>
+          <td style="padding:8px 10px">
+            <a href="{% url 'business_day:holiday_edit' h.pk %}">Edit</a>
+            &middot;
+            <form method="post" action="{% url 'business_day:holiday_toggle' h.pk %}" style="display:inline">
+              {% csrf_token %}
+              <button type="submit" style="background:none;border:0;color:#2563eb;cursor:pointer;padding:0;font:inherit">
+                {% if h.is_active %}Deactivate{% else %}Reactivate{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">No upcoming holidays.</p>
+  {% endif %}
+
+  <h2 style="margin-top:24px">Past</h2>
+  {% if past %}
+    <table style="width:100%;border-collapse:collapse;margin:12px 0">
+      <tr style="text-align:left;border-bottom:2px solid #e5e7eb">
+        <th style="padding:8px 10px">Date</th>
+        <th style="padding:8px 10px">Name</th>
+        <th style="padding:8px 10px">Was active</th>
+        <th style="padding:8px 10px">Actions</th>
+      </tr>
+      {% for h in past %}
+        <tr style="border-bottom:1px solid #e5e7eb">
+          <td style="padding:8px 10px">{{ h.date }}</td>
+          <td style="padding:8px 10px">{{ h.name }}</td>
+          <td style="padding:8px 10px">
+            {% if h.is_active %}<span style="color:#059669">Yes</span>
+            {% else %}<span style="color:#6b7280">No</span>{% endif %}
+          </td>
+          <td style="padding:8px 10px">
+            <a href="{% url 'business_day:holiday_edit' h.pk %}">Edit</a>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  {% else %}
+    <p class="muted">No past holidays.</p>
+  {% endif %}
 </div>
 {% endblock %}
