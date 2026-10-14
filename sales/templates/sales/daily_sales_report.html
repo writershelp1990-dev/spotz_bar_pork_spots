@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="spotz-page">
+  <div class="spotz-page-header">
+    <div>
+      <h1>Daily Sales by Point</h1>
+      <p>Sales totals per business day per operating point.</p>
+    </div>
+    <a href="{% url 'sales:reports_home' %}" class="spotz-btn">Back to Reports</a>
+  </div>
+
+  <div class="spotz-panel">
+    <form method="get" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <label>Period:
+        <select name="days">
+          <option value="7"  {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+          <option value="14" {% if days == 14 %}selected{% endif %}>Last 14 days</option>
+          <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+          <option value="90" {% if days == 90 %}selected{% endif %}>Last 90 days</option>
+        </select>
+      </label>
+      <label>Point:
+        <select name="point">
+          <option value="">All points</option>
+          {% for p in all_points %}
+            <option value="{{ p.code }}" {% if point_filter == p.code %}selected{% endif %}>{{ p.code }} - {{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">Apply</button>
+    </form>
+  </div>
+
+  <div class="spotz-panel">
+    {% if matrix %}
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="border-bottom:2px solid #e5e7eb">
+            <th style="text-align:left;padding:8px">Date</th>
+            {% for p in points %}
+              <th style="text-align:right;padding:8px">{{ p }}</th>
+            {% endfor %}
+            <th style="text-align:right;padding:8px;font-weight:700">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in matrix %}
+            <tr style="border-bottom:1px solid #f3f4f6">
+              <td style="padding:8px">{{ row.date }}</td>
+              {% for v in row.values %}
+                <td style="text-align:right;padding:8px">{{ v|floatformat:2 }}</td>
+              {% endfor %}
+              <td style="text-align:right;padding:8px;font-weight:600">{{ row.total|floatformat:2 }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr style="border-top:2px solid #111;font-weight:700">
+            <td style="padding:8px">TOTAL</td>
+            {% for t in point_totals %}
+              <td style="text-align:right;padding:8px">{{ t|floatformat:2 }}</td>
+            {% endfor %}
+            <td style="text-align:right;padding:8px">{{ grand_total|floatformat:2 }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    {% else %}
+      <p class="muted">No sales recorded in this period.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

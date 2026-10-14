@@ -1385,3 +1385,80 @@ def reports_home(request):
     if not getattr(request.user, "is_director", False):
         raise PermissionDenied("Director authorization required.")
     return render(request, "sales/reports_home.html")
+
+
+# ---------------------------------------------------------------------------
+# Daily sales by point
+# ---------------------------------------------------------------------------
+from datetime import timedelta as _ds_td
+
+
+@login_required
+def daily_sales_report(request):
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Director authorization required.")
+
+    try:
+        days = int(request.GET.get("days", 7) or 7)
+    except (TypeError, ValueError):
+        days = 7
+    days = max(1, min(days, 90))
+    point_filter = (request.GET.get("point") or "").strip()
+
+    today = timezone.localdate()
+    start = today - _ds_td(days=days - 1)
+
+    qs = (Sale.objects
+          .filter(payment_status=Sale.PaymentStatus.PAID,
+                  business_day__business_date__gte=start,
+                  business_day__business_date__lte=today)
+          .select_related("operating_point", "business_day"))
+
+    if point_filter:
+        qs = qs.filter(operating_point__code__iexact=point_filter)
+
+    agg = {}
+    for s in qs:
+        key = (s.business_day.business_date, s.operating_point.code)
+        agg[key] = agg.get(key, Decimal("0")) + (s.total or Decimal("0"))
+
+    all_points = list(
+        OperatingPoint.objects.filter(is_active=True).order_by("code")
+    )
+    if point_filter:
+        all_points = [p for p in all_points
+                      if p.code.lower() == point_filter.lower()]
+
+    points = [p.code for p in all_points]
+
+    total_days = (today - start).days + 1
+    dates = [start + _ds_td(days=i) for i in range(total_days)]
+    dates.reverse()
+
+    matrix = []
+    for d in dates:
+        row_vals = []
+        row_total = Decimal("0")
+        for code in points:
+            amt = agg.get((d, code), Decimal("0"))
+            row_vals.append(amt)
+            row_total += amt
+        matrix.append({"date": d, "values": row_vals, "total": row_total})
+
+    point_totals = []
+    for i, code in enumerate(points):
+        t = sum((row["values"][i] for row in matrix), Decimal("0"))
+        point_totals.append(t)
+    grand_total = sum(point_totals, Decimal("0"))
+
+    return render(request, "sales/daily_sales_report.html", {
+        "matrix": matrix,
+        "points": points,
+        "point_totals": point_totals,
+        "grand_total": grand_total,
+        "days": days,
+        "point_filter": point_filter,
+        "all_points": OperatingPoint.objects.filter(is_active=True).order_by("code"),
+        "start": start,
+        "end": today,
+    })

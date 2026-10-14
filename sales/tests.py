@@ -1413,3 +1413,101 @@ class ReportsHomeTests(TestCase):
         self.assertIn("Payments Made", body)
         self.assertIn("Daily Closing", body)
         self.assertIn("Wastage", body)
+
+class DailySalesReportTests(TestCase):
+    """Daily sales report: permissions and aggregation."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from accounts.models import RoleDefinition
+        from business.business_day_models import BusinessDay
+        from .models import Sale
+
+        User = get_user_model()
+        dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        bar_role, _ = RoleDefinition.objects.get_or_create(
+            code="BAR_ATTENDANT", defaults={"name": "Bar Attendant"})
+
+        cls.director = User.objects.create_user(
+            username="ds_dir", password="pw", role="DIRECTOR",
+            role_definition=dir_role, is_active=True, is_active_staff=True)
+        cls.staff = User.objects.create_user(
+            username="ds_staff", password="pw", role="BAR_ATTENDANT",
+            role_definition=bar_role, is_active=True, is_active_staff=True)
+
+        from accounts.models import OperatingPoint
+        cls.bar, _ = OperatingPoint.objects.get_or_create(
+            code="BAR", defaults={"name": "Bar", "is_active": True})
+        cls.kitchen, _ = OperatingPoint.objects.get_or_create(
+            code="KITCHEN", defaults={"name": "Kitchen", "is_active": True})
+
+        cls.day = BusinessDay.objects.create(
+            business_date=timezone.localdate(),
+            status=BusinessDay.Status.OPEN,
+            actual_opened_at=timezone.now(),
+            opened_by=cls.director,
+        )
+
+        # Two sales at BAR (1000 + 2000 = 3000)
+        Sale.objects.create(
+            sale_number="DS-TEST-1", business_day=cls.day,
+            operating_point=cls.bar, cashier=cls.director,
+            payment_method="CASH", total=Decimal("1000.00"),
+            amount_tendered=Decimal("1000.00"),
+            payment_status="PAID",
+        )
+        Sale.objects.create(
+            sale_number="DS-TEST-2", business_day=cls.day,
+            operating_point=cls.bar, cashier=cls.director,
+            payment_method="MPESA", total=Decimal("2000.00"),
+            amount_tendered=Decimal("2000.00"),
+            payment_status="PAID",
+        )
+        # One sale at KITCHEN (500)
+        Sale.objects.create(
+            sale_number="DS-TEST-3", business_day=cls.day,
+            operating_point=cls.kitchen, cashier=cls.director,
+            payment_method="CASH", total=Decimal("500.00"),
+            amount_tendered=Decimal("500.00"),
+            payment_status="PAID",
+        )
+
+    def test_director_sees_page(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:daily_sales"))
+        self.assertEqual(r.status_code, 200)
+
+    def test_non_director_forbidden(self):
+        from django.urls import reverse
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse("sales:daily_sales"))
+        self.assertEqual(r.status_code, 403)
+
+    def test_anonymous_redirects(self):
+        from django.urls import reverse
+        r = self.client.get(reverse("sales:daily_sales"))
+        self.assertEqual(r.status_code, 302)
+
+    def test_aggregation_sums_correctly(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:daily_sales"))
+        body = r.content.decode()
+        # BAR total 3000, KITCHEN total 500, grand total 3500
+        self.assertIn("3000.00", body)
+        self.assertIn("500.00", body)
+        self.assertIn("3500.00", body)
+
+    def test_filter_by_point(self):
+        from django.urls import reverse
+        self.client.force_login(self.director)
+        r = self.client.get(reverse("sales:daily_sales") + "?point=BAR")
+        body = r.content.decode()
+        # BAR still shows 3000, but KITCHEN column is gone
+        self.assertIn("3000.00", body)
+        self.assertNotIn("500.00", body)
