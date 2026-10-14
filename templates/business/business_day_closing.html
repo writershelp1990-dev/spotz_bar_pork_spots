@@ -30,6 +30,9 @@
       {% else %}
         <h2>CLOSED - {{ day.business_date }}</h2>
         <p>Closed: {{ day.actual_closed_at|date:"Y-m-d H:i" }}</p>
+        <div class="spotz-actions">
+          <a href="{% url 'business_day:reopen' day.pk %}" class="spotz-btn">Reopen Business Day</a>
+        </div>
       {% endif %}
     </div>
 
