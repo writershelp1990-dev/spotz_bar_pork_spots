@@ -48,4 +48,8 @@ urlpatterns = [
     path("reports/", views.reports_home, name="reports_home"),
     path("reports/daily-sales/", views.daily_sales_report, name="daily_sales"),
     path("reports/projections/", views.projections_report, name="projections_report"),
+    path("reports/projections/<str:date>/<str:code>/override/",
+         views.projection_override_set, name="projection_override_set"),
+    path("reports/projections/<str:date>/<str:code>/clear/",
+         views.projection_override_clear, name="projection_override_clear"),
 ]

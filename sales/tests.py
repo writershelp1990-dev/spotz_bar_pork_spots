@@ -1899,3 +1899,161 @@ class ProjectionsReportTests(TestCase):
         # KITCHEN has no projection or sale seeded, so table body shows empty state
         body = r.content.decode()
         self.assertIn("No projections", body)
+
+class ProjectionOverrideTests(TestCase):
+    """Override endpoints: set, update, clear, permissions."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+        from datetime import timedelta
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from accounts.models import OperatingPoint, RoleDefinition
+        from .models import SalesProjection
+
+        User = get_user_model()
+        dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        bar_role, _ = RoleDefinition.objects.get_or_create(
+            code="BAR_ATTENDANT", defaults={"name": "Bar Attendant"})
+        cls.director = User.objects.create_user(
+            username="po_dir", password="pw", role="DIRECTOR",
+            role_definition=dir_role, is_active=True, is_active_staff=True)
+        cls.staff = User.objects.create_user(
+            username="po_staff", password="pw", role="BAR_ATTENDANT",
+            role_definition=bar_role, is_active=True, is_active_staff=True)
+
+        cls.bar, _ = OperatingPoint.objects.get_or_create(
+            code="BAR", defaults={"name": "Bar", "is_active": True})
+
+        cls.target = timezone.localdate() + timedelta(days=3)
+
+    def setUp(self):
+        from .models import SalesProjection
+        SalesProjection.objects.filter(
+            date=self.target, operating_point=self.bar).delete()
+
+    def _set_url(self):
+        from django.urls import reverse
+        return reverse("sales:projection_override_set",
+                       args=[self.target.isoformat(), "BAR"])
+
+    def _clear_url(self):
+        from django.urls import reverse
+        return reverse("sales:projection_override_clear",
+                       args=[self.target.isoformat(), "BAR"])
+
+    def test_director_can_set_override(self):
+        from decimal import Decimal
+        from .models import SalesProjection
+        self.client.force_login(self.director)
+        r = self.client.post(self._set_url(),
+                             {"amount": "75000.00", "notes": "Concert"})
+        self.assertEqual(r.status_code, 302)
+        sp = SalesProjection.objects.get(
+            date=self.target, operating_point=self.bar)
+        self.assertTrue(sp.is_override)
+        self.assertEqual(sp.projected_amount, Decimal("75000.00"))
+        self.assertEqual(sp.notes, "Concert")
+        self.assertEqual(sp.entered_by, self.director)
+
+    def test_set_updates_existing_computed_row(self):
+        from decimal import Decimal
+        from .models import SalesProjection
+        SalesProjection.objects.create(
+            date=self.target, operating_point=self.bar,
+            projected_amount=Decimal("50000.00"), is_override=False,
+        )
+        self.client.force_login(self.director)
+        self.client.post(self._set_url(), {"amount": "80000.00", "notes": ""})
+        sp = SalesProjection.objects.get(
+            date=self.target, operating_point=self.bar)
+        self.assertTrue(sp.is_override)
+        self.assertEqual(sp.projected_amount, Decimal("80000.00"))
+
+    def test_director_can_clear_override(self):
+        from decimal import Decimal
+        from .models import SalesProjection
+        SalesProjection.objects.create(
+            date=self.target, operating_point=self.bar,
+            projected_amount=Decimal("90000.00"), is_override=True,
+        )
+        self.client.force_login(self.director)
+        r = self.client.post(self._clear_url())
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(SalesProjection.objects.filter(
+            date=self.target, operating_point=self.bar).exists())
+
+    def test_clear_does_not_touch_computed_rows(self):
+        from decimal import Decimal
+        from .models import SalesProjection
+        SalesProjection.objects.create(
+            date=self.target, operating_point=self.bar,
+            projected_amount=Decimal("50000.00"), is_override=False,
+        )
+        self.client.force_login(self.director)
+        self.client.post(self._clear_url())
+        # Computed row should still exist
+        self.assertTrue(SalesProjection.objects.filter(
+            date=self.target, operating_point=self.bar,
+            is_override=False).exists())
+
+    def test_non_director_cannot_set(self):
+        self.client.force_login(self.staff)
+        r = self.client.post(self._set_url(), {"amount": "1000.00"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_non_director_cannot_clear(self):
+        from decimal import Decimal
+        from .models import SalesProjection
+        SalesProjection.objects.create(
+            date=self.target, operating_point=self.bar,
+            projected_amount=Decimal("90000.00"), is_override=True,
+        )
+        self.client.force_login(self.staff)
+        r = self.client.post(self._clear_url())
+        self.assertEqual(r.status_code, 403)
+        # Row unchanged
+        self.assertTrue(SalesProjection.objects.filter(
+            date=self.target, operating_point=self.bar,
+            is_override=True).exists())
+
+    def test_get_request_rejected(self):
+        self.client.force_login(self.director)
+        r = self.client.get(self._set_url())
+        self.assertEqual(r.status_code, 403)
+
+    def test_invalid_amount_rejected(self):
+        from .models import SalesProjection
+        self.client.force_login(self.director)
+        r = self.client.post(self._set_url(), {"amount": "abc"})
+        self.assertEqual(r.status_code, 302)
+        # No row created
+        self.assertFalse(SalesProjection.objects.filter(
+            date=self.target, operating_point=self.bar).exists())
+
+    def test_negative_amount_rejected(self):
+        from .models import SalesProjection
+        self.client.force_login(self.director)
+        r = self.client.post(self._set_url(), {"amount": "-1000"})
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(SalesProjection.objects.filter(
+            date=self.target, operating_point=self.bar).exists())
+
+    def test_override_survives_compute_command(self):
+        from decimal import Decimal
+        from io import StringIO
+        from django.core.management import call_command
+        from .models import SalesProjection
+
+        SalesProjection.objects.create(
+            date=self.target, operating_point=self.bar,
+            projected_amount=Decimal("99999.00"), is_override=True,
+        )
+        call_command("compute_daily_projections",
+                     "--days-ahead", "7", stdout=StringIO())
+        sp = SalesProjection.objects.get(
+            date=self.target, operating_point=self.bar)
+        self.assertTrue(sp.is_override)
+        self.assertEqual(sp.projected_amount, Decimal("99999.00"))

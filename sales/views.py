@@ -1550,3 +1550,103 @@ def projections_report(request):
         "total_actual": total_actual,
         "overall_variance": total_actual - total_proj,
     })
+
+
+# ---------------------------------------------------------------------------
+# Projection overrides
+# ---------------------------------------------------------------------------
+import datetime as _po_dt
+from django.contrib import messages as _po_messages
+from django.shortcuts import redirect as _po_redirect
+
+
+@login_required
+def projection_override_set(request, date, code):
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Director authorization required.")
+    if request.method != "POST":
+        raise PermissionDenied("POST required.")
+
+    try:
+        target = _po_dt.date.fromisoformat(date)
+    except (TypeError, ValueError):
+        raise PermissionDenied("Invalid date.")
+
+    point = get_object_or_404(OperatingPoint, code__iexact=code)
+
+    amount_raw = (request.POST.get("amount") or "").strip()
+    notes = (request.POST.get("notes") or "").strip()[:200]
+
+    try:
+        amount = Decimal(amount_raw)
+    except (InvalidOperation, TypeError, ValueError):
+        _po_messages.error(request, "Enter a valid amount.")
+        return _po_redirect("sales:projections_report")
+    if amount < 0:
+        _po_messages.error(request, "Amount cannot be negative.")
+        return _po_redirect("sales:projections_report")
+
+    _pr_SalesProjection.objects.update_or_create(
+        date=target, operating_point=point,
+        defaults={
+            "projected_amount": amount,
+            "is_override": True,
+            "source_days": 0,
+            "source_data": [],
+            "notes": notes,
+            "entered_by": request.user,
+        },
+    )
+
+    try:
+        record_audit(
+            request=request, user=request.user,
+            action="UPDATE", model_name="SalesProjection",
+            obj=None,
+            reason=f"Projection override set for {point.code} on {target}",
+            changes={"amount": str(amount), "notes": notes},
+        )
+    except Exception:
+        pass
+
+    _po_messages.success(
+        request,
+        "Override set for " + point.code + " on " + str(target) + ": " + str(amount))
+    return _po_redirect("sales:projections_report")
+
+
+@login_required
+def projection_override_clear(request, date, code):
+    if not getattr(request.user, "is_director", False):
+        raise PermissionDenied("Director authorization required.")
+    if request.method != "POST":
+        raise PermissionDenied("POST required.")
+
+    try:
+        target = _po_dt.date.fromisoformat(date)
+    except (TypeError, ValueError):
+        raise PermissionDenied("Invalid date.")
+
+    point = get_object_or_404(OperatingPoint, code__iexact=code)
+
+    deleted, _ = _pr_SalesProjection.objects.filter(
+        date=target, operating_point=point, is_override=True,
+    ).delete()
+
+    if deleted:
+        try:
+            record_audit(
+                request=request, user=request.user,
+                action="DELETE", model_name="SalesProjection",
+                obj=None,
+                reason=f"Projection override cleared for {point.code} on {target}",
+                changes={},
+            )
+        except Exception:
+            pass
+        _po_messages.success(
+            request,
+            "Override cleared for " + point.code + " on " + str(target) + ".")
+    else:
+        _po_messages.info(request, "No override existed for that row.")
+    return _po_redirect("sales:projections_report")
