@@ -1,4 +1,6 @@
 """Tests for the expenses app — models and the seed command."""
+from datetime import date as _date_import
+from expenses.models import RecurringExpense as _RecurringExpense_import
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -494,3 +496,198 @@ class ExpenseViewTests(TestCase):
             "payment_method": "CASH",
         })
         self.assertEqual(r.status_code, 200)
+
+class RecurringAlgorithmTests(TestCase):
+    """Pure-function tests for advance_due_date."""
+
+    def _advance(self, current_iso, freq, due_day):
+        from datetime import date
+        from expenses.management.commands.generate_due_recurring_expenses import advance_due_date
+        from expenses.models import RecurringExpense
+        current = date.fromisoformat(current_iso)
+        freq_enum = getattr(RecurringExpense.Frequency, freq)
+        return advance_due_date(current, freq_enum, due_day)
+
+    # ---- WEEKLY ----
+
+    def test_weekly_same_weekday(self):
+        # 2026-10-13 is a Tuesday (weekday 1)
+        result = self._advance("2026-10-13", "WEEKLY", 1)
+        self.assertEqual(result.isoformat(), "2026-10-20")
+
+    def test_weekly_different_weekday(self):
+        # From Tuesday 2026-10-13, next Monday (weekday 0) is 2026-10-19
+        result = self._advance("2026-10-13", "WEEKLY", 0)
+        self.assertEqual(result.isoformat(), "2026-10-19")
+
+    # ---- MONTHLY ----
+
+    def test_monthly_normal(self):
+        result = self._advance("2026-10-15", "MONTHLY", 15)
+        self.assertEqual(result.isoformat(), "2026-11-15")
+
+    def test_monthly_rolls_year(self):
+        result = self._advance("2026-12-10", "MONTHLY", 10)
+        self.assertEqual(result.isoformat(), "2027-01-10")
+
+    def test_monthly_clamps_to_feb_28(self):
+        # Due on the 31st; from 2026-01-31, next month is February
+        result = self._advance("2026-01-31", "MONTHLY", 31)
+        self.assertEqual(result.isoformat(), "2026-02-28")
+
+    def test_monthly_clamps_to_feb_29_leap_year(self):
+        # 2028 is a leap year
+        result = self._advance("2028-01-31", "MONTHLY", 31)
+        self.assertEqual(result.isoformat(), "2028-02-29")
+
+    # ---- QUARTERLY ----
+
+    def test_quarterly_normal(self):
+        result = self._advance("2026-01-15", "QUARTERLY", 15)
+        self.assertEqual(result.isoformat(), "2026-04-15")
+
+    def test_quarterly_rolls_year(self):
+        result = self._advance("2026-11-10", "QUARTERLY", 10)
+        self.assertEqual(result.isoformat(), "2027-02-10")
+
+    def test_quarterly_clamps(self):
+        # Due on 31st, quarterly from Oct 31 -> Jan 31 (Jan has 31 days) -> Apr 30
+        result = self._advance("2026-01-31", "QUARTERLY", 31)
+        self.assertEqual(result.isoformat(), "2026-04-30")
+
+    # ---- ANNUAL ----
+
+    def test_annual_normal(self):
+        result = self._advance("2026-03-15", "ANNUAL", 15)
+        self.assertEqual(result.isoformat(), "2027-03-15")
+
+    def test_annual_clamps_leap(self):
+        # Feb 29 in a non-leap year
+        result = self._advance("2028-02-29", "ANNUAL", 29)
+        self.assertEqual(result.isoformat(), "2029-02-28")
+
+
+class RecurringCommandTests(TestCase):
+    """Integration tests for generate_due_recurring_expenses."""
+
+
+    @classmethod
+    def setUpTestData(cls):
+        from decimal import Decimal
+        from datetime import date
+        from django.contrib.auth import get_user_model
+        from accounts.models import RoleDefinition
+        User = get_user_model()
+        dir_role, _ = RoleDefinition.objects.get_or_create(
+            code="DIRECTOR", defaults={"name": "Director"})
+        cls.director = User.objects.create_user(
+            username="rec_dir", password="pw", role="DIRECTOR",
+            role_definition=dir_role, is_active=True, is_active_staff=True)
+        cls.cat, _ = ExpenseCategory.objects.get_or_create(
+            code="TST_REC", defaults={"name": "Recurring test"})
+
+    def _template(self, **overrides):
+        from decimal import Decimal
+        from datetime import date
+        defaults = {
+            "category": self.cat,
+            "amount": Decimal("4500.00"),
+            "payee": "Test payee",
+            "payment_method": "CASH",
+            "frequency": _RecurringExpense_import.Frequency.MONTHLY,
+            "due_day": 25,
+            "is_active": True,
+            "start_date": _date_import(2026, 1, 1),
+            "next_due_date": _date_import(2026, 10, 25),
+            "created_by": self.director,
+        }
+        defaults.update(overrides)
+        return _RecurringExpense_import.objects.create(**defaults)
+
+    def _run(self, *args):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("generate_due_recurring_expenses", *args, stdout=out)
+        return out.getvalue()
+
+    def test_generates_expense_when_due(self):
+        t = self._template()
+        Expense.objects.all().delete()
+        self._run("--up-to", "2026-10-25")
+        self.assertEqual(
+            Expense.objects.filter(recurring_source=t).count(), 1)
+
+    def test_generated_expense_is_pending(self):
+        t = self._template()
+        Expense.objects.all().delete()
+        self._run("--up-to", "2026-10-25")
+        e = Expense.objects.get(recurring_source=t)
+        self.assertEqual(e.status, Expense.Status.PENDING)
+        self.assertEqual(e.category, self.cat)
+        self.assertEqual(str(e.amount), "4500.00")
+
+    def test_advances_next_due_date(self):
+        t = self._template()
+        self._run("--up-to", "2026-10-25")
+        t.refresh_from_db()
+        self.assertEqual(t.next_due_date.isoformat(), "2026-11-25")
+
+    def test_no_generation_before_due(self):
+        self._template()
+        Expense.objects.all().delete()
+        self._run("--up-to", "2026-10-24")
+        self.assertEqual(Expense.objects.count(), 0)
+
+    def test_idempotent_when_already_generated(self):
+        t = self._template()
+        self._run("--up-to", "2026-10-25")
+        first_count = Expense.objects.filter(recurring_source=t).count()
+        # Second run with same up-to — should not double-generate
+        self._run("--up-to", "2026-10-25")
+        second_count = Expense.objects.filter(recurring_source=t).count()
+        self.assertEqual(first_count, second_count)
+
+    def test_catches_up_after_dormancy(self):
+        t = self._template(next_due_date=_date_import(2026, 7, 25))
+        Expense.objects.all().delete()
+        self._run("--up-to", "2026-10-25")
+        # Should have generated Aug 25, Sep 25, Oct 25 = 3 expenses
+        self.assertEqual(
+            Expense.objects.filter(recurring_source=t).count(), 3)
+        t.refresh_from_db()
+        self.assertEqual(t.next_due_date.isoformat(), "2026-11-25")
+
+    def test_inactive_template_skipped(self):
+        self._template(is_active=False)
+        Expense.objects.all().delete()
+        self._run("--up-to", "2026-10-25")
+        self.assertEqual(Expense.objects.count(), 0)
+
+    def test_end_date_deactivates_template(self):
+        t = self._template(end_date=_date_import(2026, 10, 1))
+        Expense.objects.all().delete()
+        self._run("--up-to", "2026-10-25")
+        t.refresh_from_db()
+        self.assertFalse(t.is_active)
+        self.assertEqual(Expense.objects.filter(recurring_source=t).count(), 0)
+
+    def test_dry_run_writes_nothing(self):
+        self._template()
+        Expense.objects.all().delete()
+        self._run("--up-to", "2026-10-25", "--dry-run")
+        self.assertEqual(Expense.objects.count(), 0)
+
+    def test_weekly_frequency(self):
+        # 2026-10-13 is Tuesday (weekday 1)
+        t = self._template(
+            frequency=_RecurringExpense_import.Frequency.WEEKLY,
+            due_day=1,
+            next_due_date=_date_import(2026, 10, 13),
+        )
+        Expense.objects.all().delete()
+        self._run("--up-to", "2026-10-13")
+        self.assertEqual(
+            Expense.objects.filter(recurring_source=t).count(), 1)
+        t.refresh_from_db()
+        self.assertEqual(t.next_due_date.isoformat(), "2026-10-20")
